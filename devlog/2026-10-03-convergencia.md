@@ -139,3 +139,6 @@ Comparar a versão antiga do Zambelli com a `main` e decidir o que portar.
   do PR #3). Criado `JVHubert/top100-negocio` (privado) com o estudo de monetização.
   Pôsteres removidos. Site instalável (manifesto + service worker com versão automática) e
   Action de Pages. Testado: service worker ativo, manifesto com 3 ícones, abre sem internet.
+- Selo TOP 100 (mini do letreiro da tela inicial) substitui o "Top 100" repetido nos nomes;
+  `categoryTitle` em `src/category-ui.js`. Categoria SBT ganhou contexto (`ui.about`) na tela
+  de explicação, sem citar posições do meio da lista (dariam pista de palpite).
