@@ -1,0 +1,73 @@
+# Report automatico: a cada mudanca na main, comenta na issue fixa "Novidades da main"
+# (label "novidades"). Quem esta inscrito na issue recebe e-mail. Ver docs/adr/0008.
+name: Novidades da main
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Montar o resumo
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse --short HEAD)"
+          SUBJECT="$(git log -1 --format=%s)"
+          AUTHOR="$(git log -1 --format=%an)"
+          BODY="$(git log -1 --format=%b | grep -vi '^Co-Authored-By:' || true)"
+          PR="$(echo "$SUBJECT" | grep -oE '\(#[0-9]+\)$' | tr -d '()#' || true)"
+
+          {
+            echo "### $SUBJECT"
+            echo
+            if [ -n "$PR" ]; then
+              echo "**Por:** $AUTHOR · **PR:** #$PR · **Commit:** ${{ github.server_url }}/${{ github.repository }}/commit/$(git rev-parse HEAD)"
+            else
+              echo "**Por:** $AUTHOR · **Commit (sem PR):** ${{ github.server_url }}/${{ github.repository }}/commit/$(git rev-parse HEAD)"
+            fi
+            echo
+            if [ -n "$BODY" ]; then
+              echo "$BODY"
+              echo
+            fi
+            CHANGES="$(git diff HEAD~1 HEAD -- CHANGELOG.md | grep -E '^\+[^+]' | sed 's/^+//' || true)"
+            if [ -n "$CHANGES" ]; then
+              echo "<details><summary>Linhas novas no CHANGELOG</summary>"
+              echo
+              echo "$CHANGES"
+              echo
+              echo "</details>"
+              echo
+            fi
+            echo "<details><summary>Arquivos alterados</summary>"
+            echo
+            echo '```'
+            git diff --stat HEAD~1 HEAD | tail -n 40
+            echo '```'
+            echo "</details>"
+            echo
+            echo "@artur-zambelli @JVHubert"
+          } > report.md
+          cat report.md
+
+      - name: Comentar na issue de novidades
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ISSUE="$(gh issue list --repo "${{ github.repository }}" --label novidades --state open --json number --jq '.[0].number')"
+          if [ -z "$ISSUE" ]; then
+            echo "::warning::Nenhuma issue aberta com a label 'novidades'; nada a comentar."
+            exit 0
+          fi
+          gh issue comment "$ISSUE" --repo "${{ github.repository }}" --body-file report.md

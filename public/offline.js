@@ -1,0 +1,560 @@
+/* Top 100 — modo offline (passa-o-celular)
+ * Roda 100% no navegador, com as regras de /shared/offline-rules.js e o mesmo reconhecimento
+ * de titulos do online. Visual e pecas (regua, ingressos, podio) iguais ao modo online.
+ * Ver docs/adr/0004 e 0007.
+ */
+import { makeRoom, addPlayer, startRound, submitAnswer, revealRound, ranking, endGame, oneMoreRound, suddenDeathResult, MAX_PLAYERS } from '/shared/offline-rules.js';
+import { AVATARS, COLORS } from '/shared/look.js';
+import { categoryUi, fillText, ratingScore } from '/shared/category-ui.js';
+import { pointsFor } from '/shared/scoring.js';
+
+const $app = document.getElementById('app');
+const $toasts = document.getElementById('toasts');
+
+const REVEAL_STEP_MS = 700;
+const NAME_MAX = 16;
+const STANDALONE = Array.isArray(window.TOP100_CATEGORIES); // build de arquivo unico, sem servidor
+
+let categories = []; // todas as categorias, com os itens
+let category = null; // a escolhida para a partida
+let roster = []; // jogadores cadastrados: { name, avatar, color }
+let room = null;
+let turn = 0; // indice do jogador da vez na rodada
+let screen = 'home';
+let lastIntroCategory = null; // a explicacao aparece de novo so quando a categoria muda
+let ratings = {}; // votos somados { idDaCategoria: { up, down } } (servidor + este aparelho)
+let surprise = false; // a partida veio do botao "categoria aleatoria"
+let voted = false; // ja votou nesta partida
+let suddenDeath = null; // rodada de morte subita em andamento: { pos, name, pt } a superar
+
+// ---------- avaliacao das categorias ----------
+const LOCAL_VOTES_KEY = 'top100:votos';
+function readLocalVotes() {
+  try { return JSON.parse(localStorage.getItem(LOCAL_VOTES_KEY)) || {}; } catch { return {}; }
+}
+function sendVote(vote) {
+  const local = readLocalVotes();
+  const entry = (local[category.id] ??= { up: 0, down: 0 });
+  entry[vote] += 1;
+  try { localStorage.setItem(LOCAL_VOTES_KEY, JSON.stringify(local)); } catch { /* sem armazenamento: segue */ }
+  const shown = (ratings[category.id] ??= { up: 0, down: 0 });
+  shown[vote] += 1;
+  if (!STANDALONE) {
+    fetch('/api/ratings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoryId: category.id, vote }),
+    }).catch(() => {}); // sem rede: o voto fica so neste aparelho
+  }
+}
+const isValidated = (c) => c.status === 'validada';
+const animatedReveals = new Set();
+
+// ---------- helpers de DOM ----------
+function h(tag, props, ...children) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'style') { for (const [sk, sv] of Object.entries(v)) if (sv != null) el.style.setProperty(sk, sv); }
+      else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (k === 'value') el.value = v;
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+  }
+  for (const c of children.flat(Infinity)) {
+    if (c == null || c === false) continue;
+    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return el;
+}
+
+function avatarEl(p, size) {
+  return h('span', { class: 'avatar', style: { '--c': p.color, '--s': size ? size + 'px' : null }, 'aria-hidden': 'true' }, p.avatar);
+}
+
+function toast(message, kind = 'error') {
+  const el = h('div', { class: `toast toast--${kind}`, role: kind === 'error' ? 'alert' : 'status' }, message);
+  $toasts.append(el);
+  setTimeout(() => el.remove(), 3800);
+}
+
+function formatDate(iso) {
+  const [y, m, d] = String(iso).split('-');
+  return d && m && y ? `${d}/${m}/${y}` : iso;
+}
+
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+const currentPlayer = () => room.players[turn];
+
+function go(next) {
+  screen = next;
+  render();
+  window.scrollTo(0, 0);
+}
+
+const SETUP_SCREENS = new Set(['home', 'players', 'category']);
+
+function render() {
+  const view = {
+    home: renderHome, players: renderPlayers, category: renderCategory,
+    intro: renderIntro, pass: renderPass, answer: renderAnswer, reveal: renderReveal, final: renderFinal,
+  }[screen];
+  $app.replaceChildren(...[SETUP_SCREENS.has(screen) ? null : topbar(), view()].filter(Boolean));
+}
+
+function topbar() {
+  const quit = () => {
+    if (!confirm('Sair da partida? A pontuação desta partida será perdida.')) return;
+    room = null;
+    go('category');
+  };
+  return h('header', { class: 'topbar' },
+    h('div', { class: 'brand' }, 'TOP 100', h('small', null, category.name)),
+    h('div', { class: 'code-chip' },
+      h('span', null, h('b', null, 'OFFLINE')),
+      h('button', { class: 'btn btn--ghost btn--small', style: { color: 'var(--tinta)' }, onclick: quit }, 'Sair'),
+    ),
+  );
+}
+
+/** Indicador "1 · 2 · 3" das etapas de preparo. */
+function steps(current) {
+  const labels = ['Modo', 'Jogadores', 'Categoria'];
+  return h('ol', { class: 'steps', 'aria-label': 'Etapas' },
+    labels.map((label, i) => h('li', { class: i + 1 === current ? 'is-current' : i + 1 < current ? 'is-done' : null, 'aria-current': i + 1 === current ? 'step' : null },
+      h('span', { class: 'n' }, i + 1), label)),
+  );
+}
+
+// ============================================================
+// 1) INICIO: online ou offline
+// ============================================================
+function renderHome() {
+  return h('section', { class: 'home' },
+    h('div', { class: 'marquee' },
+      h('h1', null, 'TOP 100'),
+      h('p', null, 'Chegue o mais perto possível do fundo da lista.'),
+    ),
+    steps(1),
+    h('div', { class: 'mode-list' },
+      h('button', { class: 'mode-card', type: 'button', onclick: () => go('players') },
+        h('span', { class: 'mode-icon', 'aria-hidden': 'true' }, '📱'),
+        h('span', { class: 'mode-text' }, h('strong', null, 'Num celular só'), h('small', null, 'O aparelho passa de mão em mão. Funciona sem internet.')),
+      ),
+      h('button', { class: 'mode-card', type: 'button', disabled: true, 'aria-describedby': 'online-soon' },
+        h('span', { class: 'mode-icon', 'aria-hidden': 'true' }, '🌐'),
+        h('span', { class: 'mode-text' }, h('strong', null, 'Cada um no seu celular'), h('small', { id: 'online-soon' }, 'Em breve.')),
+      ),
+    ),
+  );
+}
+
+// ============================================================
+// 2) JOGADORES
+// ============================================================
+function renderPlayers() {
+  const used = new Set(roster.map((p) => p.avatar));
+  const look = { avatar: pick(AVATARS.filter((a) => !used.has(a))) || pick(AVATARS), color: COLORS[roster.length % COLORS.length] };
+
+  const preview = h('div', { class: 'me-preview' });
+  const nameInput = h('input', { class: 'input', id: 'name', maxlength: String(NAME_MAX), autocomplete: 'off', placeholder: 'Nome de quem vai jogar' });
+  const paint = () => preview.replaceChildren(avatarEl(look, 56), h('strong', null, nameInput.value.trim() || 'Novo jogador'));
+  nameInput.addEventListener('input', paint);
+
+  const avatarButtons = AVATARS.map((a) => h('button', {
+    type: 'button', 'aria-label': `Personagem ${a}`, 'aria-pressed': String(a === look.avatar),
+    onclick: (e) => {
+      look.avatar = a;
+      avatarButtons.forEach((b) => b.setAttribute('aria-pressed', String(b === e.currentTarget)));
+      paint();
+    },
+  }, a));
+  const colorNames = ['Vermelho', 'Amarelo', 'Verde-água', 'Roxo', 'Laranja', 'Azul', 'Rosa', 'Verde'];
+  const colorButtons = COLORS.map((c, i) => h('button', {
+    type: 'button', style: { '--c': c }, 'aria-label': `Cor ${colorNames[i] || c}`, 'aria-pressed': String(c === look.color),
+    onclick: (e) => {
+      look.color = c;
+      colorButtons.forEach((b) => b.setAttribute('aria-pressed', String(b === e.currentTarget)));
+      paint();
+    },
+  }));
+
+  function add() {
+    const name = nameInput.value.replace(/\s+/g, ' ').trim();
+    if (!name) { toast('Digite o nome do jogador.'); nameInput.focus(); return; }
+    if (roster.length >= MAX_PLAYERS) { toast(`Máximo de ${MAX_PLAYERS} jogadores.`); return; }
+    if (roster.some((p) => p.name.toLowerCase() === name.toLowerCase())) { toast('Já tem alguém com esse nome.'); return; }
+    roster.push({ name, avatar: look.avatar, color: look.color });
+    render();
+    document.getElementById('name')?.focus();
+  }
+  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
+
+  const cards = roster.map((p, i) => h('div', { class: 'player-card' },
+    h('button', {
+      class: 'remove', type: 'button', 'aria-label': `Remover ${p.name}`,
+      onclick: () => { roster.splice(i, 1); render(); },
+    }, '×'),
+    avatarEl(p, 64),
+    h('span', { class: 'name' }, p.name),
+    h('span', { class: 'tag' }, `${i + 1}º a jogar`),
+  ));
+  if (roster.length < 2) cards.push(h('div', { class: 'player-card player-card--empty' }, h('span', null, roster.length ? 'Falta 1 jogador' : 'Ninguém ainda')));
+
+  paint();
+  return h('section', { class: 'home' },
+    steps(2),
+    h('div', { class: 'panel' },
+      preview,
+      h('div', { class: 'field' }, h('label', { for: 'name' }, 'Nome'), nameInput),
+      h('div', { class: 'field' }, h('span', { class: 'label' }, 'Personagem'), h('div', { class: 'picker' }, avatarButtons)),
+      h('div', { class: 'field' }, h('span', { class: 'label' }, 'Cor'), h('div', { class: 'swatches' }, colorButtons)),
+      h('button', { class: 'btn btn--ghost btn--block', onclick: add }, '+ Adicionar jogador'),
+    ),
+    h('div', { class: 'panel' },
+      h('h2', null, `Jogadores (${roster.length}/${MAX_PLAYERS})`),
+      h('div', { class: 'players' }, cards),
+    ),
+    h('div', { class: 'step-actions' },
+      h('button', { class: 'btn btn--ghost', onclick: () => go('home') }, 'Voltar'),
+      h('button', {
+        class: 'btn', disabled: roster.length < 1 ? true : null,
+        onclick: () => { if (!roster.length) { toast('Adicione pelo menos 1 jogador.'); return; } go('category'); },
+      }, 'Escolher categoria'),
+    ),
+  );
+}
+
+// ============================================================
+// 3) CATEGORIA
+// ============================================================
+function renderCategory() {
+  const choose = (c, fromRandom = false) => { category = c; surprise = fromRandom; startMatch(); };
+  const card = (c) => {
+    const r = ratings[c.id];
+    const votes = r && r.up + r.down ? `👍 ${r.up} · 👎 ${r.down}` : 'Ainda sem votos';
+    return h('button', { class: 'category-card', type: 'button', role: 'listitem', onclick: () => choose(c) },
+      h('strong', null, c.name),
+      h('small', null, `Lista de ${formatDate(c.snapshot.date)}${isValidated(c) ? '' : ` · ${votes}`}`),
+    );
+  };
+  const validated = categories.filter(isValidated);
+  // experimentais: as mais bem avaliadas primeiro
+  const experimental = categories.filter((c) => !isValidated(c))
+    .sort((x, y) => ratingScore(ratings[y.id]) - ratingScore(ratings[x.id]));
+  const random = () => {
+    const pool = categories.length > 1 ? categories.filter((c) => c.id !== category?.id) : categories;
+    choose(pick(pool), true);
+  };
+
+  return h('section', { class: 'home' },
+    steps(3),
+    h('p', { class: 'hint category-players' }, `${roster.length} ${roster.length === 1 ? 'jogador' : 'jogadores'}: ${roster.map((p) => p.name).join(', ')}`),
+    h('button', { class: 'mode-card random-card', type: 'button', onclick: random },
+      h('span', { class: 'mode-icon', 'aria-hidden': 'true' }, '🎲'),
+      h('span', { class: 'mode-text' }, h('strong', null, 'Categoria aleatória'), h('small', null, 'Uma surpresa. No fim, conte se foi divertida.')),
+    ),
+    validated.length
+      ? h('div', { class: 'panel' },
+          h('h2', { id: 'validadas-label' }, '⭐ Validadas'),
+          h('div', { class: 'category-cards', role: 'list', 'aria-labelledby': 'validadas-label' }, validated.map(card)),
+        )
+      : null,
+    experimental.length
+      ? h('div', { class: 'panel' },
+          h('h2', { id: 'experimentais-label' }, '🧪 Experimentais'),
+          h('p', { class: 'hint' }, 'Categorias em teste. As mais bem avaliadas sobem na lista.'),
+          h('div', { class: 'category-cards', role: 'list', 'aria-labelledby': 'experimentais-label' }, experimental.map(card)),
+        )
+      : null,
+    h('div', { class: 'step-actions' },
+      h('button', { class: 'btn btn--ghost', onclick: () => go('players') }, 'Trocar jogadores'),
+    ),
+  );
+}
+
+/** Pergunta do fim da partida: a categoria foi divertida? */
+function ratingCard() {
+  const box = h('div', { class: 'panel rating-card' + (surprise ? ' rating-card--surprise' : '') });
+  const ask = () => box.replaceChildren(
+    h('h2', null, surprise ? `Categoria surpresa: ${category.name}` : `${category.name}`),
+    h('p', null, 'Essa categoria foi divertida?'),
+    h('div', { class: 'rating-actions' },
+      h('button', { class: 'btn', type: 'button', onclick: () => vote('up') }, '👍 Foi'),
+      h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => vote('down') }, '👎 Não muito'),
+    ),
+  );
+  const thanks = () => box.replaceChildren(h('p', { class: 'rating-thanks', role: 'status' }, 'Valeu! Seu voto ajuda a escolher as próximas categorias.'));
+  function vote(v) { voted = true; sendVote(v); thanks(); }
+  if (voted) thanks(); else ask();
+  return box;
+}
+
+function startMatch() {
+  voted = false;
+  suddenDeath = null;
+  room = makeRoom({ code: 'OFFLINE', hostId: 'p1', categoryId: category.id, roundSeconds: 0 });
+  roster.forEach((p, i) => addPlayer(room, { id: `p${i + 1}`, ...p }));
+  if (surprise || lastIntroCategory !== category.id) { // sorteio sempre anuncia a categoria
+    lastIntroCategory = category.id;
+    go('intro');
+  } else {
+    newRound();
+  }
+}
+
+// ============================================================
+// EXPLICACAO DA REGRA (antes da 1a rodada)
+// ============================================================
+function renderIntro() {
+  const ui = categoryUi(category);
+  const sample = category.items.find((it) => it.pos === ui.example);
+  return h('section', { class: 'intro' },
+    h('div', { class: 'panel intro-card' },
+      h('p', { class: 'intro-kicker' }, surprise ? '🎲 Categoria sorteada' : 'Categoria'),
+      h('h1', { class: 'intro-category' }, category.name),
+      h('h2', { class: 'intro-trick' }, 'Atenção ao truque'),
+      h('p', { class: 'intro-lead' }, 'Aqui não ganha quem acerta o primeiro da lista. Ganha quem chega mais perto do ', h('b', null, 'fim'), '.'),
+      h('div', { class: 'intro-scale', 'aria-hidden': 'true' },
+        h('span', { class: 'cold' }, '#1'), h('span', { class: 'bar' }), h('span', { class: 'hot' }, '#100'),
+      ),
+      h('ul', { class: 'rules' },
+        sample
+          ? h('li', null, '🥶', h('span', null, h('b', null, sample.pt || sample.title), ` é o nº ${sample.pos} do ranking: vale só `, h('b', null, `${pointsFor(sample.pos)} ${pointsFor(sample.pos) === 1 ? 'ponto' : 'pontos'}`), '.'))
+          : h('li', null, '🥶', h('span', null, 'O nº 1 da lista vale só ', h('b', null, '1 ponto'), '.')),
+        h('li', null, '📈', h('span', null, 'Os pontos disparam no fim: o nº 50 vale 25, o nº 90 vale 81.')),
+        h('li', null, '🔥', h('span', null, 'Um palpite lá perto do nº 100 vale quase ', h('b', null, '100 pontos'), '.')),
+        h('li', null, '🚫', h('span', null, 'Fora do top 100 vale zero. O que já saiu não vale de novo.')),
+        h('li', null, '🤫', h('span', null, 'Cada um digita na sua vez, sem os outros verem.')),
+      ),
+      h('button', { class: 'btn btn--block', onclick: newRound }, 'Entendi, vamos jogar'),
+    ),
+  );
+}
+
+// ============================================================
+// RODADA: passa o celular -> resposta
+// ============================================================
+function newRound() {
+  startRound(room);
+  turn = 0;
+  go('pass');
+}
+
+function strip() {
+  return h('div', { class: 'answered-strip', 'aria-label': 'Quem já respondeu' },
+    room.players.map((p, i) => {
+      const answered = Boolean(room.round?.answers[p.id]);
+      return h('div', { class: 'who' },
+        avatarEl(p, 48),
+        answered ? h('span', { class: 'check', 'aria-hidden': 'true' }, '✓') : null,
+        h('span', null, i === turn && !answered ? `${p.name} (vez)` : p.name),
+        h('span', { class: 'visually-hidden' }, answered ? 'respondeu' : 'pensando'),
+      );
+    }),
+  );
+}
+
+function renderPass() {
+  const p = currentPlayer();
+  return h('section', { class: 'round' },
+    h('div', { class: 'panel round-main pass' },
+      h('h1', { class: 'round-title' }, `Rodada ${room.roundNumber}`),
+      suddenDeath
+        ? h('p', { class: 'sudden-banner', role: 'status' }, `⚡ Morte súbita: só vale superar o #${suddenDeath.pos} (${suddenDeath.pt}) de ${suddenDeath.name}.`)
+        : null,
+      avatarEl(p, 110),
+      h('p', { class: 'prompt' }, 'Passe o celular para'),
+      h('div', { class: 'pass-name' }, p.name),
+      h('button', { class: 'btn btn--block', onclick: () => go('answer') }, `Sou ${p.name}, estou com o celular`),
+      h('p', { class: 'hint' }, 'Os outros não podem olhar a tela agora. 🤫'),
+      strip(),
+    ),
+    sidePanel(),
+  );
+}
+
+function renderAnswer() {
+  const p = currentPlayer();
+  const ui = categoryUi(category);
+  const input = h('input', {
+    class: 'input', id: 'guess', maxlength: '80', autocomplete: 'off', autocapitalize: 'sentences',
+    placeholder: ui.placeholder, 'aria-label': ui.placeholder, enterkeyhint: 'send',
+  });
+  // Erro fica logo abaixo do campo: no celular, um aviso no rodape some atras do teclado.
+  const error = h('p', { class: 'guess-error', role: 'alert' });
+  const fail = (message) => { error.textContent = message; input.focus(); };
+  input.addEventListener('input', () => { error.textContent = ''; });
+  input.addEventListener('focus', () => input.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+
+  const form = h('form', {
+    class: 'guess-form',
+    onsubmit: (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return fail(ui.empty);
+      const res = submitAnswer(room, category, p.id, text);
+      if (!res.ok) {
+        if (res.reason === 'burned') return fail(fillText(ui.burned, { item: res.item.pt || res.item.title }));
+        if (res.reason === 'ambiguous') return fail(ui.ambiguous);
+        return fail('Não deu para registrar. Tente de novo.');
+      }
+      turn += 1;
+      if (turn < room.players.length) go('pass');
+      else { revealRound(room); go('reveal'); }
+    },
+  }, input, h('button', { class: 'btn', type: 'submit' }, 'Enviar chute'));
+  setTimeout(() => input.focus(), 0);
+
+  return h('section', { class: 'round' },
+    h('div', { class: 'panel round-main answer-main' },
+      h('div', { class: 'answer-head' }, avatarEl(p, 40), h('h1', { class: 'round-title' }, `Rodada ${room.roundNumber} · vez de ${p.name}`)),
+      suddenDeath
+        ? h('p', { class: 'sudden-banner', role: 'status' }, `⚡ Morte súbita: só vale superar o #${suddenDeath.pos} (${suddenDeath.pt}) de ${suddenDeath.name}.`)
+        : null,
+      form,
+      error,
+      h('p', { class: 'prompt' }, ui.prompt),
+      h('p', { class: 'hint' }, 'Quanto mais perto do nº 100, mais pontos.'),
+    ),
+    sidePanel(),
+  );
+}
+
+// ============================================================
+// PAINEIS LATERAIS
+// ============================================================
+function sidePanel(deltas) {
+  return h('div', { class: 'side' },
+    h('div', { class: 'panel' }, h('h2', null, 'Placar'), board(ranking(room), deltas)),
+    room.used.length
+      ? h('div', { class: 'panel' },
+          h('h2', null, 'Já saíram (não valem de novo)'),
+          h('div', { class: 'used', style: { marginTop: '10px' } }, room.used.map((u) => h('span', null, h('b', null, `#${u.pos}`), ' ', u.pt))),
+        )
+      : null,
+  );
+}
+
+function board(rows, deltas) {
+  return h('ol', { class: 'board' }, rows.map((r, i) => h('li', null,
+    h('span', { class: 'rank' }, i + 1),
+    avatarEl(r, 32),
+    h('span', { class: 'nm' }, r.name),
+    h('span', { class: 'pts' }, r.score, deltas && deltas[r.playerId] ? h('span', { class: 'delta' }, `+${deltas[r.playerId]}`) : null),
+  )));
+}
+
+// ============================================================
+// REVELACAO
+// ============================================================
+function renderReveal() {
+  const rev = room.lastReveal;
+  const key = `${room.createdAt}:${rev.number}`;
+  const animate = !animatedReveals.has(key);
+  animatedReveals.add(key);
+  const results = [...rev.results].sort((a, b) => a.points - b.points); // do pior para o melhor
+  const deltas = Object.fromEntries(results.map((r) => [r.playerId, r.points]));
+  const doneAt = results.length * REVEAL_STEP_MS + 400;
+  const ui = { h, avatarEl, animate, stepMs: REVEAL_STEP_MS };
+  const { ruler, bars, tickets } = window.Top100Reveal;
+
+  // Morte súbita em andamento: se ninguém superou o alvo, acabou.
+  const suddenOver = suddenDeath && !suddenDeathResult(rev, suddenDeath.pos).beaten;
+  const target = rev.jackpot;
+  const beatText = (pos) => (pos === 99 ? 'Só um #100 supera.' : pos === 98 ? 'Só um #99 ou #100 supera.' : `Só do #${pos + 1} ao #100 supera.`);
+  let message = null;
+  if (suddenOver) message = `Ninguém superou o #${suddenDeath.pos} de ${suddenDeath.name}. Fim de partida!`;
+  else if (target) message = target.pos === 100
+    ? `${target.name} cravou o #100 (${target.pt})! Impossível superar: fim de partida.`
+    : `${target.name} cravou o #${target.pos} (${target.pt})! ${beatText(target.pos)}`;
+  const jackpot = message
+    ? h('div', { class: 'jackpot' + (animate ? ' result--animate' : ''), style: { '--delay': `${doneAt}ms` } },
+        h('span', { class: 'big', 'aria-hidden': 'true' }, suddenOver ? '🏁' : '🎯'),
+        h('span', null, message),
+      )
+    : null;
+
+  const finish = () => { suddenDeath = null; endGame(room); go('final'); };
+  const lastChance = () => { suddenDeath = { pos: target.pos, name: target.name, pt: target.pt }; newRound(); };
+  let actions;
+  if (suddenOver || (target && target.pos === 100)) {
+    actions = h('div', { class: 'host-actions' }, h('button', { class: 'btn', onclick: finish }, 'Ver resultado final'));
+  } else if (target) {
+    // Cravou 95+ mas dá para superar: uma rodada de morte súbita, ou encerra.
+    actions = h('div', { class: 'host-actions' },
+      h('button', { class: 'btn', onclick: lastChance }, 'Só mais uma rodada (morte súbita)'),
+      h('button', { class: 'btn btn--ghost', onclick: finish }, 'Ver resultado final'),
+    );
+  } else {
+    actions = h('div', { class: 'host-actions' },
+      h('button', { class: 'btn', onclick: newRound }, 'Próxima rodada'),
+      h('button', { class: 'btn btn--ghost', onclick: finish }, 'Encerrar partida'),
+    );
+  }
+
+  return h('section', { class: 'reveal' },
+    h('div', { class: 'reveal-head' }, h('h1', null, `Rodada ${rev.number}: revelação`)),
+    ruler(results, ui),
+    bars(results, ui),
+    jackpot,
+    h('div', { class: 'results' }, tickets(results, ui)),
+    actions,
+    sidePanel(deltas),
+  );
+}
+
+// ============================================================
+// FINAL
+// ============================================================
+function renderFinal() {
+  const r = ranking(room);
+  const steps = [[r[1], 2], [r[0], 1], [r[2], 3]].filter(([p]) => p);
+  const podium = h('div', { class: 'podium', style: { gridTemplateColumns: `repeat(${steps.length}, minmax(0, 150px))` } },
+    steps.map(([p, place]) => h('div', { class: `step step--${place}` },
+      avatarEl(p),
+      h('span', { class: 'nm' }, p.name),
+      h('span', { class: 'sc' }, `${p.score} pts`),
+      h('div', { class: 'block' }, place),
+    )),
+  );
+  const best = r.filter((p) => p.best).sort((a, b) => b.best.pos - a.best.pos)[0];
+  const rounds = room.roundNumber;
+
+  return h('section', { class: 'final' },
+    h('h1', null, 'Fim de partida'),
+    h('p', { class: 'hint' }, `${category.name}, depois de ${rounds} ${rounds === 1 ? 'rodada' : 'rodadas'}.`),
+    podium,
+    best ? h('p', { class: 'best-shot' }, 'Melhor chute da partida: ', h('b', null, best.name), ` com ${best.best.pt} (#${best.best.pos}).`) : null,
+    r.length > 3 ? h('div', { class: 'panel rest' }, h('h2', null, 'Classificação completa'), board(r)) : null,
+    ratingCard(),
+    h('div', { class: 'host-actions' },
+      h('button', { class: 'btn', onclick: () => { suddenDeath = null; oneMoreRound(room); turn = 0; go('pass'); } }, 'Mais um round...'),
+      h('button', { class: 'btn btn--ghost', onclick: startMatch }, 'Jogar de novo'),
+      h('button', { class: 'btn btn--ghost', onclick: () => { room = null; go('category'); } }, 'Trocar categoria'),
+      h('button', { class: 'btn btn--ghost', onclick: () => { room = null; go('players'); } }, 'Trocar jogadores'),
+    ),
+  );
+}
+
+// ---------- inicializacao ----------
+async function boot() {
+  try {
+    if (STANDALONE) {
+      categories = window.TOP100_CATEGORIES;
+    } else {
+      const list = await (await fetch('/api/categories')).json();
+      categories = await Promise.all(list.map(async (c) => (await fetch(`/api/categories/${encodeURIComponent(c.id)}`)).json()));
+    }
+    category = categories[0];
+    ratings = STANDALONE ? readLocalVotes() : await fetch('/api/ratings').then((r) => r.json()).catch(() => ({}));
+  } catch {
+    $app.replaceChildren(h('p', { class: 'boot' }, 'Não consegui carregar as listas. Recarregue a página.'));
+    return;
+  }
+  render();
+}
+
+window.addEventListener('resize', () => { if (screen === 'reveal') render(); });
+boot();

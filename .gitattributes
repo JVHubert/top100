@@ -1,0 +1,17 @@
+# Arquivos em lote do Windows precisam terminar as linhas com CRLF.
+# Com apenas LF, o "goto" e os rotulos (":nome") deixam de funcionar.
+# Esta regra vale independente do core.autocrlf de cada maquina - por isso
+# ela fica no repositorio em vez de depender da configuracao local de cada um.
+*.cmd text eol=crlf
+
+# Scripts de shell, se um dia existirem, seguem o padrao do sistema.
+*.sh text eol=lf
+
+# Binarios: nunca converter
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

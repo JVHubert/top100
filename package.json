@@ -1,0 +1,24 @@
+{
+  "name": "top100",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Jogo multiplayer em tempo real 'Top 100': adivinhe um item o mais perto possivel da posicao 100 da lista.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "celular": "node ferramentas/gerar-celular.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}
