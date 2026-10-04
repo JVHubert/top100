@@ -5,7 +5,7 @@
  */
 import { makeRoom, addPlayer, startRound, submitAnswer, revealRound, ranking, endGame, oneMoreRound, suddenDeathResult, MAX_PLAYERS } from '/shared/offline-rules.js';
 import { AVATARS, COLORS } from '/shared/look.js';
-import { categoryUi, fillText, ratingScore } from '/shared/category-ui.js';
+import { categoryUi, fillText, ratingScore, categoryTitle } from '/shared/category-ui.js';
 import { pointsFor } from '/shared/scoring.js';
 
 const $app = document.getElementById('app');
@@ -73,6 +73,11 @@ function avatarEl(p, size) {
   return h('span', { class: 'avatar', style: { '--c': p.color, '--s': size ? size + 'px' : null }, 'aria-hidden': 'true' }, p.avatar);
 }
 
+/** Selo TOP 100 (mini da arte do topo) + nome da categoria sem o "Top 100" repetido. */
+function catLabel(c) {
+  return h('span', { class: 'cat-label' }, h('span', { class: 'tag100' }, 'TOP 100'), ' ', categoryTitle(c.name));
+}
+
 function toast(message, kind = 'error') {
   const el = h('div', { class: `toast toast--${kind}`, role: kind === 'error' ? 'alert' : 'status' }, message);
   $toasts.append(el);
@@ -110,7 +115,7 @@ function topbar() {
     go('category');
   };
   return h('header', { class: 'topbar' },
-    h('div', { class: 'brand' }, 'TOP 100', h('small', null, category.name)),
+    h('div', { class: 'brand' }, 'TOP 100', h('small', null, categoryTitle(category.name))),
     h('div', { class: 'code-chip' },
       h('span', null, h('b', null, 'OFFLINE')),
       h('button', { class: 'btn btn--ghost btn--small', style: { color: 'var(--tinta)' }, onclick: quit }, 'Sair'),
@@ -235,7 +240,7 @@ function renderCategory() {
     const r = ratings[c.id];
     const votes = r && r.up + r.down ? `👍 ${r.up} · 👎 ${r.down}` : 'Ainda sem votos';
     return h('button', { class: 'category-card', type: 'button', role: 'listitem', onclick: () => choose(c) },
-      h('strong', null, c.name),
+      h('strong', null, catLabel(c)),
       h('small', null, `Lista de ${formatDate(c.snapshot.date)}${isValidated(c) ? '' : ` · ${votes}`}`),
     );
   };
@@ -278,7 +283,7 @@ function renderCategory() {
 function ratingCard() {
   const box = h('div', { class: 'panel rating-card' + (surprise ? ' rating-card--surprise' : '') });
   const ask = () => box.replaceChildren(
-    h('h2', null, surprise ? `Categoria surpresa: ${category.name}` : `${category.name}`),
+    h('h2', null, surprise ? 'Categoria surpresa: ' : null, catLabel(category)),
     h('p', null, 'Essa categoria foi divertida?'),
     h('div', { class: 'rating-actions' },
       h('button', { class: 'btn', type: 'button', onclick: () => vote('up') }, '👍 Foi'),
@@ -313,7 +318,7 @@ function renderIntro() {
   return h('section', { class: 'intro' },
     h('div', { class: 'panel intro-card' },
       h('p', { class: 'intro-kicker' }, surprise ? '🎲 Categoria sorteada' : 'Categoria'),
-      h('h1', { class: 'intro-category' }, category.name),
+      h('h1', { class: 'intro-category' }, catLabel(category)),
       h('h2', { class: 'intro-trick' }, 'Atenção ao truque'),
       h('p', { class: 'intro-lead' }, 'Aqui não ganha quem acerta o primeiro da lista. Ganha quem chega mais perto do ', h('b', null, 'fim'), '.'),
       h('div', { class: 'intro-scale', 'aria-hidden': 'true' },
@@ -328,6 +333,14 @@ function renderIntro() {
         h('li', null, '🚫', h('span', null, 'Fora do top 100 vale zero. O que já saiu não vale de novo.')),
         h('li', null, '🤫', h('span', null, 'Cada um digita na sua vez, sem os outros verem.')),
       ),
+      // contexto da lista (ex.: o que foi o programa do SBT), quando a categoria traz
+      ui.about
+        ? h('div', { class: 'intro-about' },
+            h('h3', null, 'Sobre esta lista'),
+            [].concat(ui.about).map((p) => h('p', null, p)),
+            ui.aboutLink ? h('p', null, h('a', { href: ui.aboutLink.href, target: '_blank', rel: 'noopener' }, ui.aboutLink.label)) : null,
+          )
+        : null,
       h('button', { class: 'btn btn--block', onclick: newRound }, 'Entendi, vamos jogar'),
     ),
   );
@@ -524,7 +537,7 @@ function renderFinal() {
 
   return h('section', { class: 'final' },
     h('h1', null, 'Fim de partida'),
-    h('p', { class: 'hint' }, `${category.name}, depois de ${rounds} ${rounds === 1 ? 'rodada' : 'rodadas'}.`),
+    h('p', { class: 'hint' }, catLabel(category), `, depois de ${rounds} ${rounds === 1 ? 'rodada' : 'rodadas'}.`),
     podium,
     best ? h('p', { class: 'best-shot' }, 'Melhor chute da partida: ', h('b', null, best.name), ` com ${best.best.pt} (#${best.best.pos}).`) : null,
     r.length > 3 ? h('div', { class: 'panel rest' }, h('h2', null, 'Classificação completa'), board(r)) : null,

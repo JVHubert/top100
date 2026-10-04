@@ -54,6 +54,15 @@
     return el;
   }
 
+  // Selo TOP 100 + nome sem o "Top 100" repetido (mesma regra de categoryTitle em src/category-ui.js)
+  function categoryTitle(name) {
+    const rest = String(name).replace(/^top\s*100\s+/i, '').trim();
+    return rest.charAt(0).toLocaleUpperCase('pt-BR') + rest.slice(1);
+  }
+  function catLabel(name) {
+    return h('span', { class: 'cat-label' }, h('span', { class: 'tag100' }, 'TOP 100'), ' ', categoryTitle(name));
+  }
+
   function avatarEl(p, size, off) {
     return h('span', {
       class: 'avatar' + (off ? ' avatar--off' : ''),
@@ -172,7 +181,7 @@
 
   function topbar() {
     return h('header', { class: 'topbar' },
-      h('div', { class: 'brand' }, 'TOP 100', h('small', null, state.category.name)),
+      h('div', { class: 'brand' }, 'TOP 100', h('small', null, categoryTitle(state.category.name))),
       h('div', { class: 'code-chip' },
         h('span', null, 'Sala ', h('b', null, state.code)),
         h('button', { class: 'btn btn--ghost btn--small', style: { color: 'var(--tinta)' }, onclick: leaveRoom }, 'Sair'),
@@ -318,7 +327,7 @@
                   config.categories.map((c) => h('button', {
                     type: 'button', 'aria-pressed': String(c.id === s.category.id),
                     onclick: () => act('room:settings', { categoryId: c.id }),
-                  }, c.name)),
+                  }, catLabel(c.name))),
                 ),
               )
             : null,
@@ -336,7 +345,7 @@
         )
       : h('div', { class: 'panel host-box' },
           h('div', { class: 'waiting' }, '🍿', h('span', { class: 'dots' }, `Esperando ${hostName()} começar`)),
-          h('p', { class: 'hint' }, 'Categoria: ', h('b', null, s.category.name)),
+          h('p', { class: 'hint' }, 'Categoria: ', h('b', null, catLabel(s.category.name))),
           h('p', { class: 'hint' }, `Cada rodada terá ${s.settings.roundSeconds} segundos.`),
         );
 
@@ -534,7 +543,7 @@
 
     return h('section', { class: 'final' },
       h('h1', null, 'Fim de partida'),
-      h('p', { class: 'hint' }, `${s.category.name}, depois de ${rounds} ${rounds === 1 ? 'rodada' : 'rodadas'}.`),
+      h('p', { class: 'hint' }, catLabel(s.category.name), `, depois de ${rounds} ${rounds === 1 ? 'rodada' : 'rodadas'}.`),
       podium,
       best ? h('p', { class: 'best-shot' }, 'Melhor chute da partida: ', h('b', null, best.name), ` com ${best.best.pt} (#${best.best.pos}).`) : null,
       r.length > 3 ? h('div', { class: 'panel rest' }, h('h2', null, 'Classificação completa'), board(r, null, s.me.id)) : null,

@@ -11,6 +11,8 @@ Tipos de mudança: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Securi
 
 ### Added
 
+- **Selo TOP 100** (mini da arte do topo) no lugar do "Top 100" repetido nos nomes das categorias (cartões, explicação, topo, fim de partida).
+- Campo `ui.about` na categoria: contexto mostrado na tela "Atenção ao truque". Primeiro uso: o programa do SBT de 2012, com link para a Wikipédia.
 - **Site público instalável como app** (https://jvhubert.github.io/top100/), publicado por GitHub Action a cada merge na `main`; funciona sem internet e se atualiza sozinho (ADR-0013).
 - Três categorias novas (experimentais), com listas copiadas dos sites pelo Hubert: **séries segundo o IMDb**, **sobrenomes mais comuns do Brasil** e **nomes de bebês nascidos de 2020 a 2022** (IBGE, Censo 2022).
 - Quatro categorias novas (experimentais): **O Maior Brasileiro de Todos os Tempos (SBT, 2012)**, **100 maiores músicas brasileiras (Rolling Stone Brasil)**, **marcas mais valiosas (Interbrand 2025)** e **clubes no Ranking Nacional da CBF (2026)**, todas com conferência de grafias em teste.
