@@ -25,6 +25,8 @@ jobs:
           SUBJECT="$(git log -1 --format=%s)"
           AUTHOR="$(git log -1 --format=%an)"
           BODY="$(git log -1 --format=%b | grep -vi '^Co-Authored-By:' || true)"
+          # primeiro commit do repositório não tem pai: compara com a árvore vazia
+          BASE="$(git rev-parse --verify -q HEAD~1 || git hash-object -t tree /dev/null)"
           PR="$(echo "$SUBJECT" | grep -oE '\(#[0-9]+\)$' | tr -d '()#' || true)"
 
           {
@@ -40,7 +42,7 @@ jobs:
               echo "$BODY"
               echo
             fi
-            CHANGES="$(git diff HEAD~1 HEAD -- CHANGELOG.md | grep -E '^\+[^+]' | sed 's/^+//' || true)"
+            CHANGES="$(git diff "$BASE" HEAD -- CHANGELOG.md | grep -E '^\+[^+]' | sed 's/^+//' || true)"
             if [ -n "$CHANGES" ]; then
               echo "<details><summary>Linhas novas no CHANGELOG</summary>"
               echo
@@ -52,7 +54,7 @@ jobs:
             echo "<details><summary>Arquivos alterados</summary>"
             echo
             echo '```'
-            git diff --stat HEAD~1 HEAD | tail -n 40
+            git diff --stat "$BASE" HEAD | tail -n 40
             echo '```'
             echo "</details>"
             echo
