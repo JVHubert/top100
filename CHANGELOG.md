@@ -76,6 +76,7 @@ Tipos de mudança: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Securi
 
 ### Fixed
 
+- Mural de novidades falhava no primeiro commit de um repositório (não há commit anterior para comparar).
 - Celular: "Passe o celular para" aparecia abaixo do botão na tela de passar o aparelho.
 - Pôster de filme aparecia em outra categoria (ex.: #95 de nomes): pôsteres agora são por categoria.
 - Celular: linha vazia "1 … 100" acima das barras trocada por uma linha de chegada em cada trilho.

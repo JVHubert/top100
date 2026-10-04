@@ -3,14 +3,15 @@
 > **Briefing rápido.** Quem chega (humano ou IA) lê isto primeiro.
 > Atualize ao fim de cada sessão. Mantenha curto.
 
-**Atualizado em:** 2026-10-03
+**Atualizado em:** 2026-10-04
 **Versão:** 0.1.0 (fundação + MVP jogável)
-**Repositório:** <https://github.com/JVHubert/top100> (privado)
+**Repositório:** <https://github.com/JVHubert/top100> (público desde 04/10/2026; histórico anterior em `top100-historico`, privado; negócio em `top100-negocio`, privado)
+**Jogar:** <https://jvhubert.github.io/top100/> (instalável como app; publicado a cada merge na `main`)
 
 ## O que já está funcionando
 
 - [x] Estrutura de documentação (README, CONTRIBUTING, CHANGELOG, ADRs, devlog)
-- [x] Repositório privado publicado no GitHub + guia de colaboração (`docs/guias/subir-no-github.md`)
+- [x] Repositório público no GitHub + guia de colaboração (`docs/guias/subir-no-github.md`)
 - [x] Zambelli (`artur-zambelli`) como colaborador, com permissão de escrita
 - [x] Guia de entrada do parceiro (`docs/guias/entrar-no-projeto.md`) + instaladores de
       um clique para Windows (`ferramentas/`)
