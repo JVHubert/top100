@@ -3,7 +3,7 @@
  * de titulos do online. Visual e pecas (regua, ingressos, podio) iguais ao modo online.
  * Ver docs/adr/0004 e 0007.
  */
-import { makeRoom, addPlayer, startRound, submitAnswer, revealRound, ranking, endGame, oneMoreRound, suddenDeathResult, MAX_PLAYERS } from '/shared/offline-rules.js';
+import { makeRoom, addPlayer, startRound, submitAnswer, revealRound, ranking, endGame, oneMoreRound, suddenDeathResult, isLastRound, clampRounds, MAX_PLAYERS, MIN_ROUNDS, MAX_ROUNDS, DEFAULT_ROUNDS } from '/shared/offline-rules.js';
 import { AVATARS, COLORS } from '/shared/look.js';
 import { categoryUi, fillText, ratingScore, categoryTitle } from '/shared/category-ui.js';
 import { pointsFor } from '/shared/scoring.js';
@@ -26,6 +26,7 @@ let ratings = {}; // votos somados { idDaCategoria: { up, down } } (servidor + e
 let surprise = false; // a partida veio do botao "categoria aleatoria"
 let voted = false; // ja votou nesta partida
 let suddenDeath = null; // rodada de morte subita em andamento: { pos, name, pt } a superar
+let maxRounds = DEFAULT_ROUNDS; // escolhido na tela de rodadas; fica para as proximas partidas
 
 // ---------- avaliacao das categorias ----------
 const LOCAL_VOTES_KEY = 'top100:votos';
@@ -98,11 +99,11 @@ function go(next) {
   window.scrollTo(0, 0);
 }
 
-const SETUP_SCREENS = new Set(['home', 'players', 'category']);
+const SETUP_SCREENS = new Set(['home', 'players', 'category', 'rounds']);
 
 function render() {
   const view = {
-    home: renderHome, players: renderPlayers, category: renderCategory,
+    home: renderHome, players: renderPlayers, category: renderCategory, rounds: renderRounds,
     intro: renderIntro, pass: renderPass, answer: renderAnswer, reveal: renderReveal, final: renderFinal,
   }[screen];
   $app.replaceChildren(...[SETUP_SCREENS.has(screen) ? null : topbar(), view()].filter(Boolean));
@@ -131,10 +132,10 @@ function topbar() {
 
 /** Indicador "1 · 2 · 3" das etapas de preparo. */
 function steps(current) {
-  const labels = ['Modo', 'Jogadores', 'Categoria'];
+  const labels = ['Modo', 'Jogadores', 'Categoria', 'Rodadas'];
   return h('ol', { class: 'steps', 'aria-label': 'Etapas' },
     labels.map((label, i) => h('li', { class: i + 1 === current ? 'is-current' : i + 1 < current ? 'is-done' : null, 'aria-current': i + 1 === current ? 'step' : null },
-      h('span', { class: 'n' }, i + 1), label)),
+      h('span', { class: 'n' }, i + 1), h('span', { class: 'lbl' }, label))),
   );
 }
 
@@ -241,7 +242,7 @@ function renderPlayers() {
 // 3) CATEGORIA
 // ============================================================
 function renderCategory() {
-  const choose = (c, fromRandom = false) => { category = c; surprise = fromRandom; startMatch(); };
+  const choose = (c, fromRandom = false) => { category = c; surprise = fromRandom; go('rounds'); };
   const card = (c) => {
     const r = ratings[c.id];
     const votes = r && r.up + r.down ? `👍 ${r.up} · 👎 ${r.down}` : 'Ainda sem votos';
@@ -302,10 +303,55 @@ function ratingCard() {
   return box;
 }
 
+// ============================================================
+// 4) NUMERO DE RODADAS
+// ============================================================
+function renderRounds() {
+  const value = h('output', { class: 'rounds-value', for: 'rounds-range rounds-number', 'aria-live': 'polite' });
+  const range = h('input', { type: 'range', id: 'rounds-range', class: 'rounds-range', min: MIN_ROUNDS, max: MAX_ROUNDS, step: 1, value: maxRounds, 'aria-label': 'Número de rodadas' });
+  const number = h('input', { type: 'number', id: 'rounds-number', class: 'input rounds-number', min: MIN_ROUNDS, max: MAX_ROUNDS, step: 1, inputmode: 'numeric', value: maxRounds, 'aria-label': 'Número de rodadas' });
+  const paint = () => value.replaceChildren(String(maxRounds), h('small', null, maxRounds === 1 ? ' rodada' : ' rodadas'));
+  const set = (v, from) => {
+    maxRounds = clampRounds(v);
+    if (from !== range) range.value = maxRounds;
+    if (from !== number) number.value = maxRounds;
+    paint();
+  };
+  range.addEventListener('input', () => set(range.value, range));
+  // enquanto digita, so aplica numero valido; ao sair do campo, corrige o que ficou fora
+  number.addEventListener('input', () => { if (number.value !== '') set(number.value, number); });
+  number.addEventListener('change', () => set(number.value));
+  number.addEventListener('keydown', (e) => { if (e.key === 'Enter') { set(number.value); startMatch(); } });
+  paint();
+
+  return h('section', { class: 'home' },
+    steps(4),
+    h('p', { class: 'hint category-players' }, catLabel(category)),
+    h('div', { class: 'panel rounds-panel' },
+      h('h2', null, 'Quantas rodadas?'),
+      value,
+      h('div', { class: 'rounds-picker' },
+        h('span', { 'aria-hidden': 'true' }, MIN_ROUNDS), range, h('span', { 'aria-hidden': 'true' }, MAX_ROUNDS),
+      ),
+      h('label', { class: 'rounds-type' }, 'Ou digite: ', number),
+      h('p', { class: 'hint' }, 'Quem cravar 95+ pode encerrar antes. No fim, dá para pedir mais um round.'),
+    ),
+    h('div', { class: 'step-actions' },
+      h('button', { class: 'btn btn--ghost', onclick: () => go('category') }, 'Trocar categoria'),
+      h('button', { class: 'btn', onclick: startMatch }, 'Começar'),
+    ),
+  );
+}
+
+/** "Rodada 3 de 10"; depois do combinado ("Mais um round..."), "Rodada extra". */
+function roundLabel(n = room.roundNumber) {
+  return n <= room.maxRounds ? `Rodada ${n} de ${room.maxRounds}` : `Rodada extra (${n})`;
+}
+
 function startMatch() {
   voted = false;
   suddenDeath = null;
-  room = makeRoom({ code: 'OFFLINE', hostId: 'p1', categoryId: category.id, roundSeconds: 0 });
+  room = makeRoom({ code: 'OFFLINE', hostId: 'p1', categoryId: category.id, roundSeconds: 0, maxRounds });
   roster.forEach((p, i) => addPlayer(room, { id: `p${i + 1}`, ...p }));
   if (surprise || lastIntroCategory !== category.id) { // sorteio sempre anuncia a categoria
     lastIntroCategory = category.id;
@@ -383,7 +429,7 @@ function renderPass() {
   const p = currentPlayer();
   return h('section', { class: 'round' },
     h('div', { class: 'panel round-main pass' },
-      h('h1', { class: 'round-title' }, `Rodada ${room.roundNumber}`),
+      h('h1', { class: 'round-title' }, roundLabel()),
       suddenDeath
         ? h('p', { class: 'sudden-banner', role: 'status' }, `⚡ Morte súbita: só vale superar o #${suddenDeath.pos} (${suddenDeath.pt}) de ${suddenDeath.name}.`)
         : null,
@@ -411,6 +457,11 @@ function renderAnswer() {
   input.addEventListener('input', () => { error.textContent = ''; });
   input.addEventListener('focus', () => input.scrollIntoView({ block: 'start', behavior: 'smooth' }));
 
+  const done = () => {
+    turn += 1;
+    if (turn < room.players.length) go('pass');
+    else { revealRound(room); go('reveal'); }
+  };
   const form = h('form', {
     class: 'guess-form',
     onsubmit: (e) => {
@@ -419,29 +470,52 @@ function renderAnswer() {
       if (!text) return fail(ui.empty);
       const res = submitAnswer(room, category, p.id, text);
       if (!res.ok) {
+        if (res.reason === 'choose') return render(); // abre "Qual você quis dizer?"
         if (res.reason === 'burned') return fail(fillText(ui.burned, { item: res.item.pt || res.item.title }));
         if (res.reason === 'ambiguous') return fail(ui.ambiguous);
         return fail('Não deu para registrar. Tente de novo.');
       }
-      turn += 1;
-      if (turn < room.players.length) go('pass');
-      else { revealRound(room); go('reveal'); }
+      done();
     },
   }, input, h('button', { class: 'btn', type: 'submit' }, 'Enviar chute'));
-  setTimeout(() => input.focus(), 0);
+
+  // Pergunta aberta: sem campo de texto. Só escolher uma opção ou enviar como escreveu (ADR-0015).
+  const pending = room.round.pending[p.id];
+  const choice = pending ? choicePanel(pending, (opts) => { if (submitAnswer(room, category, p.id, null, opts).ok) done(); }) : null;
+  if (!pending) setTimeout(() => input.focus(), 0);
 
   return h('section', { class: 'round' },
     h('div', { class: 'panel round-main answer-main' },
-      h('div', { class: 'answer-head' }, avatarEl(p, 40), h('h1', { class: 'round-title' }, `Rodada ${room.roundNumber} · vez de ${p.name}`)),
+      h('div', { class: 'answer-head' }, avatarEl(p, 40), h('h1', { class: 'round-title' }, `${roundLabel()} · vez de ${p.name}`)),
       suddenDeath
         ? h('p', { class: 'sudden-banner', role: 'status' }, `⚡ Morte súbita: só vale superar o #${suddenDeath.pos} (${suddenDeath.pt}) de ${suddenDeath.name}.`)
         : null,
-      form,
-      error,
-      h('p', { class: 'prompt' }, ui.prompt),
+      choice || form,
+      choice ? null : error,
+      choice ? null : h('p', { class: 'prompt' }, ui.prompt),
       h('p', { class: 'hint' }, 'Quanto mais perto do nº 100, mais pontos.'),
     ),
     sidePanel(),
+  );
+}
+
+/** "Qual você quis dizer?": as opções parecidas com o chute + enviar como foi escrito. */
+function choicePanel(pending, send) {
+  const options = pending.options.map((pos) => category.items.find((it) => it.pos === pos));
+  return h('div', { class: 'choice', role: 'group', 'aria-labelledby': 'choice-title' },
+    h('h2', { id: 'choice-title' }, 'Qual você quis dizer?'),
+    h('p', { class: 'hint' }, 'Você escreveu ', h('b', null, `“${pending.text}”`), '. Escolha uma opção; não dá para voltar e digitar de novo.'),
+    h('div', { class: 'choice-options' },
+      options.map((it) => {
+        const name = it.pt || it.title;
+        // título original e ano ajudam a separar filmes; nada que entregue a posição
+        const extra = [it.pt && it.title !== it.pt ? it.title : null, it.year].filter(Boolean).join(', ');
+        return h('button', { class: 'btn choice-option', type: 'button', onclick: () => send({ pick: it.pos }) },
+          name, extra ? h('small', null, extra) : null);
+      }),
+    ),
+    h('button', { class: 'btn btn--ghost btn--block', type: 'button', onclick: () => send({ asTyped: true }) },
+      `Nenhum desses: enviar “${pending.text}”`),
   );
 }
 
@@ -510,6 +584,8 @@ function renderReveal() {
       h('button', { class: 'btn', onclick: lastChance }, 'Só mais uma rodada (morte súbita)'),
       h('button', { class: 'btn btn--ghost', onclick: finish }, 'Ver resultado final'),
     );
+  } else if (isLastRound(room)) {
+    actions = h('div', { class: 'host-actions' }, h('button', { class: 'btn', onclick: finish }, 'Ver resultado final'));
   } else {
     actions = h('div', { class: 'host-actions' },
       h('button', { class: 'btn', onclick: newRound }, 'Próxima rodada'),
@@ -518,7 +594,7 @@ function renderReveal() {
   }
 
   return h('section', { class: 'reveal' },
-    h('div', { class: 'reveal-head' }, h('h1', null, `Rodada ${rev.number}: revelação`)),
+    h('div', { class: 'reveal-head' }, h('h1', null, `${roundLabel(rev.number)}: revelação`)),
     ruler(results, ui),
     bars(results, ui),
     jackpot,

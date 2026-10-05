@@ -413,6 +413,7 @@ button.brand:focus-visible { outline: 2px solid var(--pipoca); outline-offset: 4
 .steps li.is-current .n { background: var(--papel); }
 .steps li.is-done { color: #fff; }
 .steps li.is-done .n { background: var(--menta); color: var(--tinta); }
+@media (max-width: 440px) { .steps li:not(.is-current) .lbl { display: none; } .steps li:not(.is-current) { padding: 6px; } }
 
 .mode-list, .category-cards { display: grid; gap: 12px; }
 .category-cards { margin-top: 12px; }
@@ -444,6 +445,20 @@ button.brand:focus-visible { outline: 2px solid var(--pipoca); outline-offset: 4
 .intro { display: grid; justify-items: center; }
 .intro-card { max-width: 560px; display: grid; gap: 18px; }
 .intro-back { display: grid; gap: 10px; }
+.rounds-panel { display: grid; gap: 14px; justify-items: center; text-align: center; }
+.rounds-panel h2 { margin: 0; }
+.rounds-value { font-family: var(--display); font-size: 3rem; line-height: 1; color: var(--pipoca); }
+.rounds-value small { font-family: var(--ui); font-size: 1rem; font-weight: 700; color: rgba(255,255,255,.75); }
+.rounds-picker { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; width: 100%; font-family: var(--display); color: rgba(255,255,255,.7); }
+.rounds-range { width: 100%; height: 32px; accent-color: var(--pipoca); cursor: pointer; }
+.rounds-type { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.rounds-number { width: 88px; text-align: center; font-weight: 800; }
+.choice { display: grid; gap: 12px; }
+.choice h2 { margin: 0; font-family: var(--display); font-weight: 400; color: var(--pipoca); }
+.choice .hint { margin: 0; text-align: left; }
+.choice-options { display: grid; gap: 10px; }
+.choice-option { width: 100%; flex-direction: column; gap: 2px; min-height: 56px; overflow-wrap: anywhere; }
+.choice-option small { font-weight: 600; font-size: .82rem; opacity: .75; }
 .intro-card h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 7vw, 2.2rem); color: var(--pipoca); text-align: center; }
 .intro-lead { margin: 0; font-size: 1.15rem; text-align: center; text-wrap: balance; }
 .intro-scale { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; font-family: var(--display); }

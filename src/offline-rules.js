@@ -1,19 +1,30 @@
 // Regras do modo offline (passa-o-celular). Puro (sem I/O, sem sockets): recebe e muta um
 // objeto de sala. Roda no navegador; o reconhecimento de titulos e o mesmo do online.
 
-import { matchAnswer } from './matching.js';
+import { matchAnswer, suggestItems } from './matching.js';
 import { pointsFor } from './scoring.js';
 
 export const DEFAULT_ROUND_SECONDS = 30;
 export const CONCEDE_THRESHOLD = 95; // a partir daqui oferecemos o "concede"
 export const MAX_PLAYERS = 12;
+export const MIN_ROUNDS = 1;
+export const MAX_ROUNDS = 10;
+export const DEFAULT_ROUNDS = 5;
 
-export function makeRoom({ code, hostId, categoryId, roundSeconds = DEFAULT_ROUND_SECONDS }) {
+/** Numero de rodadas valido (1 a 10); qualquer coisa estranha vira o padrao. */
+export function clampRounds(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return DEFAULT_ROUNDS;
+  return Math.min(MAX_ROUNDS, Math.max(MIN_ROUNDS, n));
+}
+
+export function makeRoom({ code, hostId, categoryId, roundSeconds = DEFAULT_ROUND_SECONDS, maxRounds = DEFAULT_ROUNDS }) {
   return {
     code,
     hostId,
     categoryId,
     roundSeconds,
+    maxRounds: clampRounds(maxRounds), // rodadas combinadas; "Mais um round..." pode passar disso
     phase: 'lobby', // lobby | round | reveal | ended
     players: [], // { id, name, avatar, connected, score }
     round: null, // { number, endsAt, answers: {playerId: entry}, order: [] }
@@ -89,23 +100,57 @@ export function startRound(room) {
     endsAt: Date.now() + room.roundSeconds * 1000,
     answers: {},
     order: [],
+    pending: {}, // "qual voce quis dizer?" aberto: { playerId: { text, options: [pos] } }
   };
   return room.round;
 }
 
-export function submitAnswer(room, category, playerId, text) {
+/**
+ * Registra o chute de um jogador. Com o chute incerto, devolve `reason: 'choose'` e as opcoes
+ * parecidas ("Qual voce quis dizer?", ADR-0015). A partir dai a pergunta fica presa: so vale
+ * `{ pick: pos }` (uma das opcoes) ou `{ asTyped: true }` (o texto original, sem trocar).
+ * Assim ninguem cancela e redigita para sondar a lista.
+ */
+export function submitAnswer(room, category, playerId, text, { pick = null, asTyped = false } = {}) {
   if (room.phase !== 'round' || !room.round) return { ok: false, reason: 'not-in-round' };
   if (room.round.answers[playerId]) return { ok: false, reason: 'already-answered' };
 
-  const raw = String(text ?? '').trim().slice(0, 60);
-  if (!raw) return { ok: false, reason: 'empty' };
+  const burned = (pos) => room.used.some((u) => u.pos === pos);
+  const pending = room.round.pending[playerId];
+  let raw;
+  let status;
+  let item = null;
 
-  const { status, item } = matchAnswer(category, raw);
-  // Nome que serve para mais de um item: pede para especificar, sem gastar a vez.
-  if (status === 'ambiguous') return { ok: false, reason: 'ambiguous' };
-  if (status === 'hit' && room.used.some((u) => u.pos === item.pos)) {
-    return { ok: false, reason: 'burned', item };
+  if (pending) {
+    raw = pending.text;
+    if (pick != null) {
+      if (!pending.options.includes(pick)) return { ok: false, reason: 'must-choose', options: optionItems(category, pending.options) };
+      status = 'hit';
+      item = category.items.find((it) => it.pos === pick);
+    } else if (asTyped) {
+      status = matchAnswer(category, raw).status === 'ambiguous' ? 'ambiguous' : 'miss';
+    } else {
+      return { ok: false, reason: 'must-choose', options: optionItems(category, pending.options) };
+    }
+  } else {
+    raw = String(text ?? '').trim().slice(0, 60);
+    if (!raw) return { ok: false, reason: 'empty' };
+    ({ status, item } = matchAnswer(category, raw));
+    if (status === 'hit' && burned(item.pos)) return { ok: false, reason: 'burned', item };
+    if (status !== 'hit') {
+      const found = suggestItems(category, raw, { exclude: room.used.map((u) => u.pos) });
+      // Parecidos demais para caber na pergunta: pede o nome completo, sem gastar a vez.
+      if (found.tooMany) return { ok: false, reason: 'ambiguous' };
+      if (found.items.length) {
+        room.round.pending[playerId] = { text: raw, options: found.items.map((it) => it.pos) };
+        return { ok: false, reason: 'choose', options: found.items };
+      }
+      // Ambiguo curto demais para sugerir (ex.: 3 letras): pede o nome completo, como antes.
+      if (status === 'ambiguous') return { ok: false, reason: 'ambiguous' };
+    }
   }
+  delete room.round.pending[playerId];
+
   const hit = status === 'hit';
   const entry = {
     playerId,
@@ -123,6 +168,10 @@ export function submitAnswer(room, category, playerId, text) {
   room.round.answers[playerId] = entry;
   room.round.order.push(playerId);
   return { ok: true, entry };
+}
+
+function optionItems(category, positions) {
+  return positions.map((pos) => category.items.find((it) => it.pos === pos));
 }
 
 export function revealRound(room) {
@@ -175,6 +224,11 @@ export function revealRound(room) {
   return room.lastReveal;
 }
 
+/** A rodada atual e a ultima combinada (ou uma extra, depois dela)? */
+export function isLastRound(room) {
+  return room.roundNumber >= room.maxRounds;
+}
+
 export function ranking(room) {
   return [...room.players]
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
@@ -224,6 +278,7 @@ export function publicState(room, viewerId) {
     phase: room.phase,
     roundSeconds: room.roundSeconds,
     roundNumber: room.roundNumber,
+    maxRounds: room.maxRounds,
     concedeOffered: room.concedeOffered,
     ratings: { ...room.ratings },
     youId: viewerId ?? null,
