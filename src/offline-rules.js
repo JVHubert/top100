@@ -7,13 +7,24 @@ import { pointsFor } from './scoring.js';
 export const DEFAULT_ROUND_SECONDS = 30;
 export const CONCEDE_THRESHOLD = 95; // a partir daqui oferecemos o "concede"
 export const MAX_PLAYERS = 12;
+export const MIN_ROUNDS = 1;
+export const MAX_ROUNDS = 10;
+export const DEFAULT_ROUNDS = 5;
 
-export function makeRoom({ code, hostId, categoryId, roundSeconds = DEFAULT_ROUND_SECONDS }) {
+/** Numero de rodadas valido (1 a 10); qualquer coisa estranha vira o padrao. */
+export function clampRounds(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return DEFAULT_ROUNDS;
+  return Math.min(MAX_ROUNDS, Math.max(MIN_ROUNDS, n));
+}
+
+export function makeRoom({ code, hostId, categoryId, roundSeconds = DEFAULT_ROUND_SECONDS, maxRounds = DEFAULT_ROUNDS }) {
   return {
     code,
     hostId,
     categoryId,
     roundSeconds,
+    maxRounds: clampRounds(maxRounds), // rodadas combinadas; "Mais um round..." pode passar disso
     phase: 'lobby', // lobby | round | reveal | ended
     players: [], // { id, name, avatar, connected, score }
     round: null, // { number, endsAt, answers: {playerId: entry}, order: [] }
@@ -175,6 +186,11 @@ export function revealRound(room) {
   return room.lastReveal;
 }
 
+/** A rodada atual e a ultima combinada (ou uma extra, depois dela)? */
+export function isLastRound(room) {
+  return room.roundNumber >= room.maxRounds;
+}
+
 export function ranking(room) {
   return [...room.players]
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
@@ -224,6 +240,7 @@ export function publicState(room, viewerId) {
     phase: room.phase,
     roundSeconds: room.roundSeconds,
     roundNumber: room.roundNumber,
+    maxRounds: room.maxRounds,
     concedeOffered: room.concedeOffered,
     ratings: { ...room.ratings },
     youId: viewerId ?? null,

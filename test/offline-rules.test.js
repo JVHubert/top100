@@ -14,6 +14,9 @@ import {
   oneMoreRound,
   suddenDeathResult,
   publicState,
+  isLastRound,
+  clampRounds,
+  DEFAULT_ROUNDS,
   CONCEDE_THRESHOLD,
 } from '../src/offline-rules.js';
 import { getCategory, DEFAULT_CATEGORY_ID } from '../src/categories.js';
@@ -210,4 +213,30 @@ test('morte súbita: só supera quem passar da posição alvo', () => {
   submitAnswer(room, category, 'p1', 'Incêndios'); // #97
   submitAnswer(room, category, 'p2', 'Avatar 3');
   assert.equal(suddenDeathResult(revealRound(room), 99).beaten, false);
+});
+
+test('numero de rodadas: padrao, limites de 1 a 10 e entrada estranha', () => {
+  assert.equal(makeRoom({ code: 'T', hostId: 'p1', categoryId: category.id }).maxRounds, DEFAULT_ROUNDS);
+  assert.equal(clampRounds(3), 3);
+  assert.equal(clampRounds(0), 1);
+  assert.equal(clampRounds(42), 10);
+  assert.equal(clampRounds('7'), 7);
+  assert.equal(clampRounds('abc'), DEFAULT_ROUNDS);
+  assert.equal(clampRounds(2.6), 3);
+});
+
+test('numero de rodadas: a ultima rodada e reconhecida, e "mais um round" passa do limite', () => {
+  const room = makeRoom({ code: 'T', hostId: 'p1', categoryId: category.id, maxRounds: 2 });
+  addPlayer(room, { id: 'p1', name: 'Ana', avatar: '🦊' });
+  startRound(room);
+  assert.equal(isLastRound(room), false);
+  revealRound(room);
+  startRound(room);
+  assert.equal(isLastRound(room), true);
+  revealRound(room);
+  endGame(room);
+  oneMoreRound(room);
+  assert.equal(room.roundNumber, 3);
+  assert.equal(isLastRound(room), true); // extra: termina de novo no resultado final
+  assert.equal(publicState(room, 'p1').maxRounds, 2);
 });
