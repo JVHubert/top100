@@ -13,8 +13,7 @@
     "placeholder": "Nome do clube (ex.: com o estado, se houver dois)",
     "empty": "Digite o nome de um clube.",
     "ambiguous": "Esse nome serve para mais de um clube da lista. Escreva com o estado (ex.: Atlético-GO).",
-    "burned": "{item} já saiu nesta partida. Escolha outro.",
-    "example": 1
+    "burned": "{item} já saiu nesta partida. Escolha outro."
   },
   "items": [
     {"pos":1,"title":"Flamengo","detail":"RJ · 16.314 pts","aliases":["Mengão","Fla","Mengo"]},

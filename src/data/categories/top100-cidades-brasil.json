@@ -13,8 +13,7 @@
     "placeholder": "Nome da cidade",
     "empty": "Digite o nome de uma cidade.",
     "ambiguous": "Esse nome serve para mais de uma cidade da lista. Escreva o nome completo.",
-    "burned": "{item} já saiu nesta partida. Escolha outra.",
-    "example": 4
+    "burned": "{item} já saiu nesta partida. Escolha outra."
   },
   "items": [
     {"pos":1,"title":"São Paulo","aliases":["Sampa"],"detail":"SP · 11,5 mi hab."},

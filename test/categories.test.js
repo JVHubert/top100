@@ -32,11 +32,6 @@ for (const category of all) {
     }
   });
 
-  test(`${category.id}: exemplo da tela "Atenção ao truque" é uma posição baixa`, () => {
-    const example = category.ui?.example;
-    if (example == null) return;
-    assert.ok(example >= 1 && example <= 30, `exemplo ${example} entrega posição alta demais`);
-  });
 }
 
 test('nomes: acento e maiúscula não importam; variantes são nomes diferentes', () => {

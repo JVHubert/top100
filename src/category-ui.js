@@ -9,7 +9,6 @@ const DEFAULTS = Object.freeze({
   empty: 'Digite uma resposta.',
   ambiguous: 'Esse nome serve para mais de um item da lista. Escreva o nome completo.',
   burned: '{item} já saiu nesta partida. Escolha outro.',
-  example: null, // posicao de um item baixo da lista para a tela "Atencao ao truque"
   about: null, // contexto da lista (paragrafos) mostrado na tela "Atencao ao truque"
   aboutLink: null, // { href, label } para saber mais
 });

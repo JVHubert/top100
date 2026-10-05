@@ -19,8 +19,7 @@ Um arquivo JSON em `src/data/categories/`:
     "placeholder": "Nome da cidade",
     "empty": "Digite o nome de uma cidade.",
     "ambiguous": "Esse nome serve para mais de uma cidade da lista. Escreva o nome completo.",
-    "burned": "{item} já saiu nesta partida. Escolha outra.",
-    "example": 5
+    "burned": "{item} já saiu nesta partida. Escolha outra."
   },
   "match": { "minFuzzyLength": 4, "minTokenFuzzyLength": 5 },
   "items": [
@@ -34,8 +33,6 @@ Um arquivo JSON em `src/data/categories/`:
 - `status`: `"validada"` (conferida e jogada pelo Hubert, aparece em ⭐ Validadas) ou
   `"experimental"` (padrão; aparece em 🧪 Experimentais, ordenada pelos votos). Ver ADR-0012.
 - `ui` (opcional): textos da categoria; o que faltar usa os padrões de `src/category-ui.js`.
-  `example` é a posição de um item **baixo** da lista, mostrado na tela "Atenção ao truque"
-  (nunca perto do 100, para não entregar resposta).
 - `match` (opcional): tolerância a erro de digitação. Listas de palavras curtas (nomes de
   pessoas) pedem valores maiores para "Ana" não virar "Ane". `spellingVariants: true`
   aceita grafias alternativas do mesmo nome (Raphael = Rafael); se duas grafias forem

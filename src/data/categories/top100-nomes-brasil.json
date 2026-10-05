@@ -13,8 +13,7 @@
     "placeholder": "Só o primeiro nome",
     "empty": "Digite um nome.",
     "ambiguous": "Escreva só um primeiro nome.",
-    "burned": "{item} já saiu nesta partida. Escolha outro.",
-    "example": 9
+    "burned": "{item} já saiu nesta partida. Escolha outro."
   },
   "match": {"minFuzzyLength":1000,"minTokenFuzzyLength":1000,"spellingVariants":true},
   "items": [

@@ -413,7 +413,12 @@ button.brand:focus-visible { outline: 2px solid var(--pipoca); outline-offset: 4
 .steps li.is-current .n { background: var(--papel); }
 .steps li.is-done { color: #fff; }
 .steps li.is-done .n { background: var(--menta); color: var(--tinta); }
-@media (max-width: 440px) { .steps li:not(.is-current) .lbl { display: none; } .steps li:not(.is-current) { padding: 6px; } }
+.steps li:has(.step-link) { padding: 0; }
+.step-link { all: unset; display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.step-link:hover { background: var(--tela-3); }
+.steps li:has(.step-link) { color: #fff; }
+.step-link:focus-visible { outline: 2px solid var(--pipoca); outline-offset: 2px; }
+@media (max-width: 440px) { .steps li:not(.is-current) .lbl { display: none; } .steps li:not(.is-current) { padding: 6px; } .steps li:not(.is-current):has(.step-link) { padding: 0; } .steps .step-link { padding: 6px; } }
 
 .mode-list, .category-cards { display: grid; gap: 12px; }
 .category-cards { margin-top: 12px; }

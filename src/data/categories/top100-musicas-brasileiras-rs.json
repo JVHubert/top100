@@ -13,8 +13,7 @@
     "placeholder": "Nome da música",
     "empty": "Digite o nome de uma música.",
     "ambiguous": "Esse nome serve para mais de uma música da lista. Escreva o nome completo.",
-    "burned": "{item} já saiu nesta partida. Escolha outra.",
-    "example": 4
+    "burned": "{item} já saiu nesta partida. Escolha outra."
   },
   "items": [
     {"pos":1,"title":"Construção","detail":"Chico Buarque"},

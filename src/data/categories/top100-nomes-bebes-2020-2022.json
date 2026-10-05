@@ -14,8 +14,7 @@
     "placeholder": "Só o primeiro nome",
     "empty": "Digite um nome.",
     "ambiguous": "Escreva só um primeiro nome.",
-    "burned": "{item} já saiu nesta partida. Escolha outro.",
-    "example": 9
+    "burned": "{item} já saiu nesta partida. Escolha outro."
   },
   "items": [
     {"pos":1,"title":"Maria","detail":"571 mil pessoas"},

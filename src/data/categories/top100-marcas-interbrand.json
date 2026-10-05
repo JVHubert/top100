@@ -13,8 +13,7 @@
     "placeholder": "Nome da marca",
     "empty": "Digite o nome de uma marca.",
     "ambiguous": "Esse nome serve para mais de uma marca da lista. Escreva o nome completo.",
-    "burned": "{item} já saiu nesta partida. Escolha outra.",
-    "example": 7
+    "burned": "{item} já saiu nesta partida. Escolha outra."
   },
   "items": [
     {"pos":1,"title":"Apple","detail":"Tecnologia · US$ 470,9 bi"},
