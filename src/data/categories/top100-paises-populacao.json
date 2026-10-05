@@ -14,8 +14,7 @@
     "placeholder": "Nome do país",
     "empty": "Digite o nome de um país.",
     "ambiguous": "Esse nome serve para mais de um país da lista. Escreva o nome completo (ex.: com \"do Sul\" ou \"do Norte\").",
-    "burned": "{item} já saiu nesta partida. Escolha outro.",
-    "example": 7
+    "burned": "{item} já saiu nesta partida. Escolha outro."
   },
   "items": [
     {"pos":1,"title":"Índia","detail":"1,44 bi hab."},

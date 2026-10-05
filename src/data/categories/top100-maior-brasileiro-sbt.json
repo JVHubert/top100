@@ -15,7 +15,6 @@
     "empty": "Digite o nome de alguém.",
     "ambiguous": "Esse nome serve para mais de uma pessoa da lista. Escreva o nome completo.",
     "burned": "{item} já saiu nesta partida. Escolha outra pessoa.",
-    "example": 4,
     "about": [
       "Em 2012, o SBT exibiu \"O Maior Brasileiro de Todos os Tempos\", versão brasileira de um programa da BBC, apresentado por Carlos Nascimento. A ideia era \"eleger aquele que fez mais pela nação\".",
       "O público votou pela internet (mais de 1 milhão de votos) e os 100 nomes foram anunciados em julho de 2012. Os 12 primeiros se enfrentaram em duelos semanais até a final, em 3 de outubro de 2012.",

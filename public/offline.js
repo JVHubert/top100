@@ -6,7 +6,6 @@
 import { makeRoom, addPlayer, startRound, submitAnswer, revealRound, ranking, endGame, oneMoreRound, suddenDeathResult, isLastRound, clampRounds, MAX_PLAYERS, MIN_ROUNDS, MAX_ROUNDS, DEFAULT_ROUNDS } from '/shared/offline-rules.js';
 import { AVATARS, COLORS } from '/shared/look.js';
 import { categoryUi, fillText, ratingScore, categoryTitle } from '/shared/category-ui.js';
-import { pointsFor } from '/shared/scoring.js';
 
 const $app = document.getElementById('app');
 const $toasts = document.getElementById('toasts');
@@ -26,6 +25,7 @@ let ratings = {}; // votos somados { idDaCategoria: { up, down } } (servidor + e
 let surprise = false; // a partida veio do botao "categoria aleatoria"
 let voted = false; // ja votou nesta partida
 let suddenDeath = null; // rodada de morte subita em andamento: { pos, name, pt } a superar
+let categoryPicked = false; // a etapa "Rodadas" so libera depois de escolher a categoria
 let maxRounds = DEFAULT_ROUNDS; // escolhido na tela de rodadas; fica para as proximas partidas
 
 // ---------- avaliacao das categorias ----------
@@ -131,11 +131,24 @@ function topbar() {
 }
 
 /** Indicador "1 · 2 · 3" das etapas de preparo. */
+/** Indicador "1 · 2 · 3 · 4" das etapas de preparo. Cada etapa já liberada é clicável. */
 function steps(current) {
-  const labels = ['Modo', 'Jogadores', 'Categoria', 'Rodadas'];
+  const list = [
+    { label: 'Modo', screen: 'home', ready: true },
+    { label: 'Jogadores', screen: 'players', ready: true },
+    { label: 'Categoria', screen: 'category', ready: roster.length > 0 },
+    { label: 'Rodadas', screen: 'rounds', ready: roster.length > 0 && categoryPicked },
+  ];
   return h('ol', { class: 'steps', 'aria-label': 'Etapas' },
-    labels.map((label, i) => h('li', { class: i + 1 === current ? 'is-current' : i + 1 < current ? 'is-done' : null, 'aria-current': i + 1 === current ? 'step' : null },
-      h('span', { class: 'n' }, i + 1), h('span', { class: 'lbl' }, label))),
+    list.map((s, i) => {
+      const n = i + 1;
+      const state = n === current ? 'is-current' : n < current ? 'is-done' : null;
+      const content = [h('span', { class: 'n' }, n), h('span', { class: 'lbl' }, s.label)];
+      return h('li', { class: state, 'aria-current': n === current ? 'step' : null },
+        n !== current && s.ready
+          ? h('button', { type: 'button', class: 'step-link', 'aria-label': `Ir para ${s.label}`, onclick: () => go(s.screen) }, content)
+          : content);
+    }),
   );
 }
 
@@ -242,7 +255,7 @@ function renderPlayers() {
 // 3) CATEGORIA
 // ============================================================
 function renderCategory() {
-  const choose = (c, fromRandom = false) => { category = c; surprise = fromRandom; go('rounds'); };
+  const choose = (c, fromRandom = false) => { category = c; surprise = fromRandom; categoryPicked = true; go('rounds'); };
   const card = (c) => {
     const r = ratings[c.id];
     const votes = r && r.up + r.down ? `👍 ${r.up} · 👎 ${r.down}` : 'Ainda sem votos';
@@ -366,7 +379,6 @@ function startMatch() {
 // ============================================================
 function renderIntro() {
   const ui = categoryUi(category);
-  const sample = category.items.find((it) => it.pos === ui.example);
   return h('section', { class: 'intro' },
     h('div', { class: 'panel intro-card' },
       h('p', { class: 'intro-kicker' }, surprise ? '🎲 Categoria sorteada' : 'Categoria'),
@@ -377,9 +389,7 @@ function renderIntro() {
         h('span', { class: 'cold' }, '#1'), h('span', { class: 'bar' }), h('span', { class: 'hot' }, '#100'),
       ),
       h('ul', { class: 'rules' },
-        sample
-          ? h('li', null, '🥶', h('span', null, h('b', null, sample.pt || sample.title), ` é o nº ${sample.pos} do ranking: vale só `, h('b', null, `${pointsFor(sample.pos)} ${pointsFor(sample.pos) === 1 ? 'ponto' : 'pontos'}`), '.'))
-          : h('li', null, '🥶', h('span', null, 'O nº 1 da lista vale só ', h('b', null, '1 ponto'), '.')),
+        h('li', null, '🥶', h('span', null, 'O nº 1 da lista vale só ', h('b', null, '1 ponto'), '.')),
         h('li', null, '📈', h('span', null, 'Cada item vale a sua posição: o nº 50 vale 50, o nº 90 vale 90.')),
         h('li', null, '🔥', h('span', null, 'Um palpite lá perto do nº 100 vale quase ', h('b', null, '100 pontos'), '.')),
         h('li', null, '🚫', h('span', null, 'Fora do top 100 vale zero. O que já saiu não vale de novo.')),

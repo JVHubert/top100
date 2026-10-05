@@ -14,8 +14,7 @@
     "placeholder": "Um sobrenome (ex.: o seu)",
     "empty": "Digite um sobrenome.",
     "ambiguous": "Escreva só um sobrenome.",
-    "burned": "{item} já saiu nesta partida. Escolha outro.",
-    "example": 4
+    "burned": "{item} já saiu nesta partida. Escolha outro."
   },
   "items": [
     {"pos":1,"title":"Silva","detail":"34,0 mi de pessoas"},

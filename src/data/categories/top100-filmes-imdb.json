@@ -13,8 +13,7 @@
     "placeholder": "Nome do filme, em português ou inglês",
     "empty": "Digite o nome de um filme.",
     "ambiguous": "Esse nome serve para mais de um filme. Escreva o nome completo (com o subtítulo, por exemplo).",
-    "burned": "{item} já saiu nesta partida. Escolha outro.",
-    "example": 9
+    "burned": "{item} já saiu nesta partida. Escolha outro."
   },
   "items": [
     { "pos": 1,   "title": "The Shawshank Redemption", "pt": "Um Sonho de Liberdade", "year": 1994 },

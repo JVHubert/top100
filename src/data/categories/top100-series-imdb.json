@@ -13,8 +13,7 @@
     "placeholder": "Nome da série, em português ou inglês",
     "empty": "Digite o nome de uma série.",
     "ambiguous": "Esse nome serve para mais de uma série da lista. Escreva o nome completo.",
-    "burned": "{item} já saiu nesta partida. Escolha outra.",
-    "example": 5
+    "burned": "{item} já saiu nesta partida. Escolha outra."
   },
   "items": [
     {"pos":1,"title":"Breaking Bad","pt":"Breaking Bad: A Química do Mal","detail":"2008–2013"},
