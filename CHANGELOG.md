@@ -11,6 +11,7 @@ Tipos de mudança: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Securi
 
 ### Added
 
+- **Voltar sem sair do jogo** (modo num celular só): o título **TOP 100** no topo leva ao início, e a tela "Atenção ao truque" ganhou **Escolher outra categoria** e **Escolher outros jogadores**. Só pede confirmação se a partida já tem rodada jogada.
 - **Selo TOP 100** (mini da arte do topo) no lugar do "Top 100" repetido nos nomes das categorias (cartões, explicação, topo, fim de partida).
 - Campo `ui.about` na categoria: contexto mostrado na tela "Atenção ao truque". Primeiro uso: o programa do SBT de 2012, com link para a Wikipédia.
 - **Site público instalável como app** (https://jvhubert.github.io/top100/), publicado por GitHub Action a cada merge na `main`; funciona sem internet e se atualiza sozinho (ADR-0013).
