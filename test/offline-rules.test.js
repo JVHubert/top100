@@ -17,6 +17,7 @@ import {
   isLastRound,
   clampRounds,
   DEFAULT_ROUNDS,
+  tiedForFirst,
   CONCEDE_THRESHOLD,
 } from '../src/offline-rules.js';
 import { getCategory, DEFAULT_CATEGORY_ID } from '../src/categories.js';
@@ -314,4 +315,100 @@ test('sugestao: nomes de fora parecidos nao pontuam sozinhos (Mario, Luiza)', ()
   const luiza = submitAnswer(room, names, 'p2', 'Luiza');
   assert.equal(luiza.reason, 'choose'); // pergunta, mas so pontua se o jogador escolher
   assert.equal(room.round.answers.p2, undefined);
+});
+
+// ---------- modo Alvo (ADR-0016) ----------
+const rngFor = (target) => () => (target - 1) / 100; // faz o sorteio cair no alvo pedido
+function targetRoom(target, names = ['Ana', 'Bia']) {
+  const room = makeRoom({ code: 'T', hostId: 'p1', categoryId: clubs.id, gameMode: 'target' });
+  names.forEach((name, i) => addPlayer(room, { id: `p${i + 1}`, name, avatar: '🦊' }));
+  startRound(room, { rng: rngFor(target) });
+  return room;
+}
+
+test('alvo: sorteio de 1 a 100 em cada rodada', () => {
+  assert.equal(targetRoom(1).round.target, 1);
+  assert.equal(targetRoom(100).round.target, 100);
+  const room = makeRoom({ code: 'T', hostId: 'p1', categoryId: clubs.id, gameMode: 'target' });
+  for (let i = 0; i < 200; i++) {
+    const t = startRound(room).target;
+    assert.ok(Number.isInteger(t) && t >= 1 && t <= 100, `alvo ${t}`);
+  }
+  assert.equal(makeRoom({ code: 'T', hostId: 'p1', categoryId: clubs.id }).gameMode, 'classic');
+});
+
+test('alvo: o mais perto vence a rodada e leva 1 ponto (alvo 28: #32 ganha de #10)', () => {
+  const room = targetRoom(28);
+  const p32 = clubs.items.find((it) => it.pos === 32);
+  const p10 = clubs.items.find((it) => it.pos === 10);
+  assert.equal(submitAnswer(room, clubs, 'p1', p32.title).entry.points, 0); // decidido so na revelacao
+  submitAnswer(room, clubs, 'p2', p10.title);
+  const rev = revealRound(room);
+  assert.equal(rev.target, 28);
+  assert.equal(rev.winnerId, 'p1');
+  const byId = Object.fromEntries(rev.results.map((r) => [r.playerId, r]));
+  assert.equal(byId.p1.distance, 4);
+  assert.equal(byId.p2.distance, 18);
+  assert.equal(byId.p1.points, 1);
+  assert.equal(byId.p2.points, 0);
+  assert.deepEqual(ranking(room).map((p) => [p.name, p.score]), [['Ana', 1], ['Bia', 0]]);
+  assert.equal(rev.jackpot, null);
+});
+
+test('alvo: empate entre os mais perto (#32 e #24 com alvo 28) = ninguem pontua', () => {
+  const room = targetRoom(28, ['Ana', 'Bia', 'Caio']);
+  submitAnswer(room, clubs, 'p1', clubs.items.find((it) => it.pos === 32).title);
+  submitAnswer(room, clubs, 'p2', clubs.items.find((it) => it.pos === 24).title);
+  submitAnswer(room, clubs, 'p3', clubs.items.find((it) => it.pos === 60).title);
+  const rev = revealRound(room);
+  assert.equal(rev.winnerId, null);
+  assert.ok(rev.results.every((r) => r.points === 0));
+});
+
+test('alvo: fora da lista nunca vence; ninguem na lista = ninguem pontua', () => {
+  const room = targetRoom(50);
+  submitAnswer(room, clubs, 'p1', 'Real Madrid');
+  submitAnswer(room, clubs, 'p2', clubs.items.find((it) => it.pos === 99).title);
+  assert.equal(revealRound(room).winnerId, 'p2');
+  const empty = targetRoom(50);
+  submitAnswer(empty, clubs, 'p1', 'Real Madrid');
+  submitAnswer(empty, clubs, 'p2', 'Barcelona');
+  assert.equal(revealRound(empty).winnerId, null);
+});
+
+test('alvo: cravar 95+ nao abre concede nem morte subita', () => {
+  const room = targetRoom(99);
+  submitAnswer(room, clubs, 'p1', clubs.items.find((it) => it.pos === 99).title);
+  submitAnswer(room, clubs, 'p2', 'Real Madrid');
+  const rev = revealRound(room);
+  assert.equal(rev.jackpot, null);
+  assert.equal(room.concedeOffered, false);
+  assert.equal(rev.winnerId, 'p1');
+});
+
+test('desempate: empate no primeiro lugar e detectado (vale para os dois modos)', () => {
+  const title = (pos) => clubs.items.find((it) => it.pos === pos).title;
+  const room = targetRoom(28);
+  submitAnswer(room, clubs, 'p1', title(32)); // Ana vence a rodada 1
+  submitAnswer(room, clubs, 'p2', title(10));
+  revealRound(room);
+  assert.equal(tiedForFirst(room), false); // 1 x 0
+  startRound(room, { rng: rngFor(50) });
+  submitAnswer(room, clubs, 'p1', title(99));
+  submitAnswer(room, clubs, 'p2', title(60)); // Bia vence a rodada 2
+  revealRound(room);
+  assert.equal(tiedForFirst(room), true); // 1 x 1
+
+  const classic = makeRoom({ code: 'T', hostId: 'p1', categoryId: clubs.id });
+  addPlayer(classic, { id: 'p1', name: 'Ana', avatar: '🦊' });
+  addPlayer(classic, { id: 'p2', name: 'Bia', avatar: '🐼' });
+  startRound(classic);
+  submitAnswer(classic, clubs, 'p1', 'Real Madrid');
+  submitAnswer(classic, clubs, 'p2', 'Barcelona');
+  revealRound(classic);
+  assert.equal(tiedForFirst(classic), true); // 0 x 0 tambem e empate
+
+  const solo = makeRoom({ code: 'T', hostId: 'p1', categoryId: clubs.id });
+  addPlayer(solo, { id: 'p1', name: 'Ana', avatar: '🦊' });
+  assert.equal(tiedForFirst(solo), false); // jogando sozinho nao ha empate
 });

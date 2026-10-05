@@ -11,6 +11,13 @@ export const MIN_ROUNDS = 1;
 export const MAX_ROUNDS = 10;
 export const DEFAULT_ROUNDS = 5;
 
+// Tipos de jogo (ADR-0016):
+//   classic: cada acerto soma a propria posicao; perto do 100 vale mais.
+//   target:  a cada rodada sorteamos um alvo de 1 a 100; quem chegar mais perto vence a
+//            rodada e leva 1 ponto. Empate entre os mais perto: ninguem pontua.
+export const GAME_MODES = ['classic', 'target'];
+export const DEFAULT_GAME_MODE = 'classic';
+
 /** Numero de rodadas valido (1 a 10); qualquer coisa estranha vira o padrao. */
 export function clampRounds(value) {
   const n = Math.round(Number(value));
@@ -18,12 +25,13 @@ export function clampRounds(value) {
   return Math.min(MAX_ROUNDS, Math.max(MIN_ROUNDS, n));
 }
 
-export function makeRoom({ code, hostId, categoryId, roundSeconds = DEFAULT_ROUND_SECONDS, maxRounds = DEFAULT_ROUNDS }) {
+export function makeRoom({ code, hostId, categoryId, roundSeconds = DEFAULT_ROUND_SECONDS, maxRounds = DEFAULT_ROUNDS, gameMode = DEFAULT_GAME_MODE }) {
   return {
     code,
     hostId,
     categoryId,
     roundSeconds,
+    gameMode: GAME_MODES.includes(gameMode) ? gameMode : DEFAULT_GAME_MODE,
     maxRounds: clampRounds(maxRounds), // rodadas combinadas; "Mais um round..." pode passar disso
     phase: 'lobby', // lobby | round | reveal | ended
     players: [], // { id, name, avatar, connected, score }
@@ -89,7 +97,8 @@ export function allSubmitted(room) {
   return active.length > 0 && active.every((id) => room.round?.answers[id]);
 }
 
-export function startRound(room) {
+/** `rng` so para testes: devolve [0, 1), como Math.random. */
+export function startRound(room, { rng = Math.random } = {}) {
   room.roundNumber += 1;
   room.phase = 'round';
   room.concedeOffered = false;
@@ -101,6 +110,7 @@ export function startRound(room) {
     answers: {},
     order: [],
     pending: {}, // "qual voce quis dizer?" aberto: { playerId: { text, options: [pos] } }
+    target: room.gameMode === 'target' ? 1 + Math.floor(rng() * 100) : null, // alvo da rodada (1 a 100)
   };
   return room.round;
 }
@@ -163,7 +173,8 @@ export function submitAnswer(room, category, playerId, text, { pick = null, asTy
     detail: hit ? item.detail ?? null : null,
     matched: hit ? item.pt || item.title : null,
     rank: hit ? item.pos : null,
-    points: hit ? pointsFor(item.pos) : 0, // = posicao (scoring.js); fora da lista = 0
+    // classico: = posicao (scoring.js). Alvo: decidido na revelacao, comparando todos.
+    points: hit && room.gameMode === 'classic' ? pointsFor(item.pos) : 0,
   };
   room.round.answers[playerId] = entry;
   room.round.order.push(playerId);
@@ -199,13 +210,26 @@ export function revealRound(room) {
     };
   });
 
+  const target = room.round.target;
+  let winnerId = null;
+  if (room.gameMode === 'target') {
+    for (const r of results) r.distance = r.status === 'hit' ? Math.abs(r.pos - target) : null;
+    const closest = Math.min(...results.filter((r) => r.distance != null).map((r) => r.distance));
+    const winners = results.filter((r) => r.distance === closest);
+    if (winners.length === 1) {
+      winnerId = winners[0].playerId;
+      winners[0].points = 1;
+    }
+  }
+
   for (const r of results) {
     const p = room.players.find((x) => x.id === r.playerId);
     if (!p) continue;
     // melhor palpite ANTES desta rodada: fica marcado no painel até ser superado
     r.prevBest = p.best ? { ...p.best } : null;
     p.score += r.points;
-    if (r.status === 'hit' && (!p.best || r.pos > p.best.pos)) p.best = { pos: r.pos, pt: r.pt };
+    // "melhor chute" = o mais perto do 100; so faz sentido no classico
+    if (room.gameMode === 'classic' && r.status === 'hit' && (!p.best || r.pos > p.best.pos)) p.best = { pos: r.pos, pt: r.pt };
     if (r.status === 'hit' && !room.used.some((u) => u.pos === r.pos)) {
       room.used.push({ pos: r.pos, pt: r.pt, title: r.title });
     }
@@ -214,11 +238,13 @@ export function revealRound(room) {
 
   // melhor POSICAO da rodada (o aviso de 95+ olha a posicao)
   const best = results.reduce((m, r) => (r.status === 'hit' ? Math.max(m, r.pos) : m), 0);
-  room.concedeOffered = best >= CONCEDE_THRESHOLD;
+  // 95+ (concede / morte subita) so existe no classico
+  const classic = room.gameMode === 'classic';
+  room.concedeOffered = classic && best >= CONCEDE_THRESHOLD;
   const top = results.filter((r) => r.status === 'hit').sort((a, b) => b.pos - a.pos)[0];
-  const jackpot = top && top.pos >= CONCEDE_THRESHOLD ? { playerId: top.playerId, name: top.name, pos: top.pos, pt: top.pt } : null;
+  const jackpot = classic && top && top.pos >= CONCEDE_THRESHOLD ? { playerId: top.playerId, name: top.name, pos: top.pos, pt: top.pt } : null;
 
-  room.lastReveal = { number: room.round.number, results, best, jackpot };
+  room.lastReveal = { number: room.round.number, results, best, jackpot, target, winnerId };
   room.history.push({ number: room.round.number, results });
   room.round = null;
   return room.lastReveal;
@@ -227,6 +253,12 @@ export function revealRound(room) {
 /** A rodada atual e a ultima combinada (ou uma extra, depois dela)? */
 export function isLastRound(room) {
   return room.roundNumber >= room.maxRounds;
+}
+
+/** Empate no primeiro lugar (com 2+ jogadores): o fim de partida oferece desempate. */
+export function tiedForFirst(room) {
+  const r = ranking(room);
+  return r.length > 1 && r[0].score === r[1].score;
 }
 
 export function ranking(room) {
@@ -279,6 +311,7 @@ export function publicState(room, viewerId) {
     roundSeconds: room.roundSeconds,
     roundNumber: room.roundNumber,
     maxRounds: room.maxRounds,
+    gameMode: room.gameMode,
     concedeOffered: room.concedeOffered,
     ratings: { ...room.ratings },
     youId: viewerId ?? null,
@@ -298,6 +331,7 @@ export function publicState(room, viewerId) {
       submitted: Object.keys(room.round.answers),
       youAnswered: Boolean(room.round.answers[viewerId]),
       youAnswer: room.round.answers[viewerId]?.text ?? null,
+      target: room.round.target,
       // permite ao cliente corrigir diferenca de relogio entre navegador e servidor
       serverNow: Date.now(),
     };

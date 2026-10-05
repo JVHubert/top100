@@ -3,7 +3,7 @@
  * de titulos do online. Visual e pecas (regua, ingressos, podio) iguais ao modo online.
  * Ver docs/adr/0004 e 0007.
  */
-import { makeRoom, addPlayer, startRound, submitAnswer, revealRound, ranking, endGame, oneMoreRound, suddenDeathResult, isLastRound, clampRounds, MAX_PLAYERS, MIN_ROUNDS, MAX_ROUNDS, DEFAULT_ROUNDS } from '/shared/offline-rules.js';
+import { makeRoom, addPlayer, startRound, submitAnswer, revealRound, ranking, endGame, oneMoreRound, suddenDeathResult, isLastRound, clampRounds, tiedForFirst, MAX_PLAYERS, MIN_ROUNDS, MAX_ROUNDS, DEFAULT_ROUNDS, DEFAULT_GAME_MODE } from '/shared/offline-rules.js';
 import { AVATARS, COLORS } from '/shared/look.js';
 import { categoryUi, fillText, ratingScore, categoryTitle } from '/shared/category-ui.js';
 
@@ -25,8 +25,9 @@ let ratings = {}; // votos somados { idDaCategoria: { up, down } } (servidor + e
 let surprise = false; // a partida veio do botao "categoria aleatoria"
 let voted = false; // ja votou nesta partida
 let suddenDeath = null; // rodada de morte subita em andamento: { pos, name, pt } a superar
-let categoryPicked = false; // a etapa "Rodadas" so libera depois de escolher a categoria
+let categoryPicked = false; // a etapa "Partida" so libera depois de escolher a categoria
 let maxRounds = DEFAULT_ROUNDS; // escolhido na tela de rodadas; fica para as proximas partidas
+let gameMode = DEFAULT_GAME_MODE; // 'classic' (soma posicoes) | 'target' (alvo sorteado), ADR-0016
 
 // ---------- avaliacao das categorias ----------
 const LOCAL_VOTES_KEY = 'top100:votos';
@@ -137,7 +138,7 @@ function steps(current) {
     { label: 'Modo', screen: 'home', ready: true },
     { label: 'Jogadores', screen: 'players', ready: true },
     { label: 'Categoria', screen: 'category', ready: roster.length > 0 },
-    { label: 'Rodadas', screen: 'rounds', ready: roster.length > 0 && categoryPicked },
+    { label: 'Partida', screen: 'rounds', ready: roster.length > 0 && categoryPicked },
   ];
   return h('ol', { class: 'steps', 'aria-label': 'Etapas' },
     list.map((s, i) => {
@@ -337,9 +338,25 @@ function renderRounds() {
   number.addEventListener('keydown', (e) => { if (e.key === 'Enter') { set(number.value); startMatch(); } });
   paint();
 
+  const modes = [
+    { id: 'classic', icon: '📈', name: 'Clássico', text: 'Cada acerto soma a posição: perto do nº 100 vale mais.' },
+    { id: 'target', icon: '🎯', name: 'Alvo', text: 'Sorteamos um número de 1 a 100. Quem chegar mais perto vence a rodada.' },
+  ];
+  const modeButtons = modes.map((m) => h('button', {
+    type: 'button', class: 'mode-card game-mode', role: 'radio', 'aria-checked': String(m.id === gameMode),
+    onclick: () => { gameMode = m.id; render(); },
+  },
+    h('span', { class: 'mode-icon', 'aria-hidden': 'true' }, m.icon),
+    h('span', { class: 'mode-text' }, h('strong', null, m.name), h('small', null, m.text)),
+  ));
+
   return h('section', { class: 'home' },
     steps(4),
     h('p', { class: 'hint category-players' }, catLabel(category)),
+    h('div', { class: 'panel' },
+      h('h2', { id: 'game-mode-label' }, 'Tipo de jogo'),
+      h('div', { class: 'mode-list', role: 'radiogroup', 'aria-labelledby': 'game-mode-label' }, modeButtons),
+    ),
     h('div', { class: 'panel rounds-panel' },
       h('h2', null, 'Quantas rodadas?'),
       value,
@@ -347,7 +364,9 @@ function renderRounds() {
         h('span', { 'aria-hidden': 'true' }, MIN_ROUNDS), range, h('span', { 'aria-hidden': 'true' }, MAX_ROUNDS),
       ),
       h('label', { class: 'rounds-type' }, 'Ou digite: ', number),
-      h('p', { class: 'hint' }, 'Quem cravar 95+ pode encerrar antes. No fim, dá para pedir mais um round.'),
+      h('p', { class: 'hint' }, gameMode === 'classic'
+        ? 'Quem cravar 95+ pode encerrar antes. Empate no fim? Dá para jogar desempate.'
+        : 'Cada rodada vencida vale 1 ponto. Empate no fim? Dá para jogar desempate.'),
     ),
     h('div', { class: 'step-actions' },
       h('button', { class: 'btn btn--ghost', onclick: () => go('category') }, 'Trocar categoria'),
@@ -356,7 +375,7 @@ function renderRounds() {
   );
 }
 
-/** "Rodada 3 de 10"; depois do combinado ("Mais um round..."), "Rodada extra". */
+/** "Rodada 3 de 10"; depois do combinado (desempate ou "Mais um round..."), "Rodada extra". */
 function roundLabel(n = room.roundNumber) {
   return n <= room.maxRounds ? `Rodada ${n} de ${room.maxRounds}` : `Rodada extra (${n})`;
 }
@@ -364,10 +383,11 @@ function roundLabel(n = room.roundNumber) {
 function startMatch() {
   voted = false;
   suddenDeath = null;
-  room = makeRoom({ code: 'OFFLINE', hostId: 'p1', categoryId: category.id, roundSeconds: 0, maxRounds });
+  room = makeRoom({ code: 'OFFLINE', hostId: 'p1', categoryId: category.id, roundSeconds: 0, maxRounds, gameMode });
   roster.forEach((p, i) => addPlayer(room, { id: `p${i + 1}`, ...p }));
-  if (surprise || lastIntroCategory !== category.id) { // sorteio sempre anuncia a categoria
-    lastIntroCategory = category.id;
+  const introKey = `${category.id}:${gameMode}`; // explica de novo se mudar categoria ou tipo de jogo
+  if (surprise || lastIntroCategory !== introKey) { // sorteio sempre anuncia a categoria
+    lastIntroCategory = introKey;
     go('intro');
   } else {
     newRound();
@@ -383,18 +403,7 @@ function renderIntro() {
     h('div', { class: 'panel intro-card' },
       h('p', { class: 'intro-kicker' }, surprise ? '🎲 Categoria sorteada' : 'Categoria'),
       h('h1', { class: 'intro-category' }, catLabel(category)),
-      h('h2', { class: 'intro-trick' }, 'Atenção ao truque'),
-      h('p', { class: 'intro-lead' }, 'Aqui não ganha quem acerta o primeiro da lista. Ganha quem chega mais perto do ', h('b', null, 'fim'), '.'),
-      h('div', { class: 'intro-scale', 'aria-hidden': 'true' },
-        h('span', { class: 'cold' }, '#1'), h('span', { class: 'bar' }), h('span', { class: 'hot' }, '#100'),
-      ),
-      h('ul', { class: 'rules' },
-        h('li', null, '🥶', h('span', null, 'O nº 1 da lista vale só ', h('b', null, '1 ponto'), '.')),
-        h('li', null, '📈', h('span', null, 'Cada item vale a sua posição: o nº 50 vale 50, o nº 90 vale 90.')),
-        h('li', null, '🔥', h('span', null, 'Um palpite lá perto do nº 100 vale quase ', h('b', null, '100 pontos'), '.')),
-        h('li', null, '🚫', h('span', null, 'Fora do top 100 vale zero. O que já saiu não vale de novo.')),
-        h('li', null, '🤫', h('span', null, 'Cada um digita na sua vez, sem os outros verem.')),
-      ),
+      gameMode === 'target' ? introTarget() : introClassic(),
       // contexto da lista (ex.: o que foi o programa do SBT), quando a categoria traz
       ui.about
         ? h('div', { class: 'intro-about' },
@@ -410,6 +419,43 @@ function renderIntro() {
       ),
     ),
   );
+}
+
+function introClassic() {
+  return [
+    h('h2', { class: 'intro-trick' }, 'Atenção ao truque'),
+    h('p', { class: 'intro-lead' }, 'Aqui não ganha quem acerta o primeiro da lista. Ganha quem chega mais perto do ', h('b', null, 'fim'), '.'),
+    h('div', { class: 'intro-scale', 'aria-hidden': 'true' },
+      h('span', { class: 'cold' }, '#1'), h('span', { class: 'bar' }), h('span', { class: 'hot' }, '#100'),
+    ),
+    h('ul', { class: 'rules' },
+      h('li', null, '🥶', h('span', null, 'O nº 1 da lista vale só ', h('b', null, '1 ponto'), '.')),
+      h('li', null, '📈', h('span', null, 'Cada item vale a sua posição: o nº 50 vale 50, o nº 90 vale 90.')),
+      h('li', null, '🔥', h('span', null, 'Um palpite lá perto do nº 100 vale quase ', h('b', null, '100 pontos'), '.')),
+      h('li', null, '🚫', h('span', null, 'Fora do top 100 vale zero. O que já saiu não vale de novo.')),
+      h('li', null, '🤫', h('span', null, 'Cada um digita na sua vez, sem os outros verem.')),
+    ),
+  ];
+}
+
+function introTarget() {
+  return [
+    h('h2', { class: 'intro-trick' }, '🎯 Modo Alvo'),
+    h('p', { class: 'intro-lead' }, 'A cada rodada sorteamos um número de 1 a 100. Ganha quem chegar ', h('b', null, 'mais perto dele'), '.'),
+    h('ul', { class: 'rules' },
+      h('li', null, '🎯', h('span', null, 'Ex.: alvo nº 28. Quem acertar o nº 32 (a 4) ganha de quem acertar o nº 10 (a 18).')),
+      h('li', null, '🏅', h('span', null, 'Vencer a rodada vale ', h('b', null, '1 ponto'), '.')),
+      h('li', null, '🤝', h('span', null, 'Empate entre os mais perto (nº 24 e nº 32 com alvo 28): ninguém pontua.')),
+      h('li', null, '🚫', h('span', null, 'Fora do top 100 não conta. O que já saiu não vale de novo.')),
+      h('li', null, '🤫', h('span', null, 'Cada um digita na sua vez, sem os outros verem.')),
+    ),
+  ];
+}
+
+/** Faixa com o alvo da rodada (modo Alvo). */
+function targetBanner() {
+  const t = room.round?.target ?? room.lastReveal?.target;
+  return t ? h('p', { class: 'target-banner', role: 'status' }, '🎯 Alvo da rodada: ', h('b', null, `nº ${t}`)) : null;
 }
 
 // ============================================================
@@ -440,6 +486,7 @@ function renderPass() {
   return h('section', { class: 'round' },
     h('div', { class: 'panel round-main pass' },
       h('h1', { class: 'round-title' }, roundLabel()),
+      targetBanner(),
       suddenDeath
         ? h('p', { class: 'sudden-banner', role: 'status' }, `⚡ Morte súbita: só vale superar o #${suddenDeath.pos} (${suddenDeath.pt}) de ${suddenDeath.name}.`)
         : null,
@@ -497,13 +544,14 @@ function renderAnswer() {
   return h('section', { class: 'round' },
     h('div', { class: 'panel round-main answer-main' },
       h('div', { class: 'answer-head' }, avatarEl(p, 40), h('h1', { class: 'round-title' }, `${roundLabel()} · vez de ${p.name}`)),
+      targetBanner(),
       suddenDeath
         ? h('p', { class: 'sudden-banner', role: 'status' }, `⚡ Morte súbita: só vale superar o #${suddenDeath.pos} (${suddenDeath.pt}) de ${suddenDeath.name}.`)
         : null,
       choice || form,
       choice ? null : error,
-      choice ? null : h('p', { class: 'prompt' }, ui.prompt),
-      h('p', { class: 'hint' }, 'Quanto mais perto do nº 100, mais pontos.'),
+      choice ? null : h('p', { class: 'prompt' }, room.round.target ? `Qual ${ui.noun} está mais perto do nº ${room.round.target}?` : ui.prompt),
+      h('p', { class: 'hint' }, room.round.target ? 'Quem chegar mais perto do alvo vence a rodada.' : 'Quanto mais perto do nº 100, mais pontos.'),
     ),
     sidePanel(),
   );
@@ -561,10 +609,12 @@ function renderReveal() {
   const key = `${room.createdAt}:${rev.number}`;
   const animate = !animatedReveals.has(key);
   animatedReveals.add(key);
-  const results = [...rev.results].sort((a, b) => a.points - b.points); // do pior para o melhor
+  // do pior para o melhor (a ordem da animação); no Alvo, pior = mais longe (quem chutou fora sai primeiro)
+  const far = (r) => (r.distance == null ? Infinity : r.distance);
+  const results = [...rev.results].sort(rev.target ? (a, b) => far(b) - far(a) || a.points - b.points : (a, b) => a.points - b.points);
   const deltas = Object.fromEntries(results.map((r) => [r.playerId, r.points]));
   const doneAt = results.length * REVEAL_STEP_MS + 400;
-  const ui = { h, avatarEl, animate, stepMs: REVEAL_STEP_MS };
+  const ui = { h, avatarEl, animate, stepMs: REVEAL_STEP_MS, target: rev.target };
   const { ruler, bars, tickets } = window.Top100Reveal;
 
   // Morte súbita em andamento: se ninguém superou o alvo, acabou.
@@ -572,13 +622,19 @@ function renderReveal() {
   const target = rev.jackpot;
   const beatText = (pos) => (pos === 99 ? 'Só um #100 supera.' : pos === 98 ? 'Só um #99 ou #100 supera.' : `Só do #${pos + 1} ao #100 supera.`);
   let message = null;
-  if (suddenOver) message = `Ninguém superou o #${suddenDeath.pos} de ${suddenDeath.name}. Fim de partida!`;
+  if (rev.target) {
+    const win = rev.results.find((r) => r.playerId === rev.winnerId);
+    const anyHit = rev.results.some((r) => r.status === 'hit');
+    message = win
+      ? (win.distance === 0 ? `${win.name} cravou o alvo nº ${rev.target}! +1 ponto.` : `${win.name} chegou mais perto do nº ${rev.target} (#${win.pos}, a ${win.distance}). +1 ponto.`)
+      : anyHit ? `Empate entre os mais perto do nº ${rev.target}: ninguém pontua.` : `Ninguém acertou um item da lista. Alvo era o nº ${rev.target}.`;
+  } else if (suddenOver) message = `Ninguém superou o #${suddenDeath.pos} de ${suddenDeath.name}. Fim de partida!`;
   else if (target) message = target.pos === 100
     ? `${target.name} cravou o #100 (${target.pt})! Impossível superar: fim de partida.`
     : `${target.name} cravou o #${target.pos} (${target.pt})! ${beatText(target.pos)}`;
   const jackpot = message
     ? h('div', { class: 'jackpot' + (animate ? ' result--animate' : ''), style: { '--delay': `${doneAt}ms` } },
-        h('span', { class: 'big', 'aria-hidden': 'true' }, suddenOver ? '🏁' : '🎯'),
+        h('span', { class: 'big', 'aria-hidden': 'true' }, suddenOver ? '🏁' : rev.target && !rev.winnerId ? '🤝' : '🎯'),
         h('span', null, message),
       )
     : null;
@@ -594,6 +650,13 @@ function renderReveal() {
       h('button', { class: 'btn', onclick: lastChance }, 'Só mais uma rodada (morte súbita)'),
       h('button', { class: 'btn btn--ghost', onclick: finish }, 'Ver resultado final'),
     );
+  } else if (isLastRound(room) && tiedForFirst(room)) {
+    // Empate no primeiro lugar: quantas rodadas de desempate quiserem (os dois modos).
+    actions = h('div', { class: 'host-actions' },
+      h('p', { class: 'hint tie-note' }, 'Empate no primeiro lugar!'),
+      h('button', { class: 'btn', onclick: newRound }, 'Rodada de desempate'),
+      h('button', { class: 'btn btn--ghost', onclick: finish }, 'Ver resultado final'),
+    );
   } else if (isLastRound(room)) {
     actions = h('div', { class: 'host-actions' }, h('button', { class: 'btn', onclick: finish }, 'Ver resultado final'));
   } else {
@@ -605,6 +668,7 @@ function renderReveal() {
 
   return h('section', { class: 'reveal' },
     h('div', { class: 'reveal-head' }, h('h1', null, `${roundLabel(rev.number)}: revelação`)),
+    targetBanner(),
     ruler(results, ui),
     bars(results, ui),
     jackpot,
@@ -633,7 +697,8 @@ function renderFinal() {
 
   return h('section', { class: 'final' },
     h('h1', null, 'Fim de partida'),
-    h('p', { class: 'hint' }, catLabel(category), `, depois de ${rounds} ${rounds === 1 ? 'rodada' : 'rodadas'}.`),
+    h('p', { class: 'hint' }, catLabel(category), `, ${room.gameMode === 'target' ? 'modo Alvo, ' : ''}depois de ${rounds} ${rounds === 1 ? 'rodada' : 'rodadas'}.`),
+    tiedForFirst(room) ? h('p', { class: 'hint tie-note' }, 'Terminou empatado. "Mais um round..." desempata.') : null,
     podium,
     best ? h('p', { class: 'best-shot' }, 'Melhor chute da partida: ', h('b', null, best.name), ` com ${best.best.pt} (#${best.best.pos}).`) : null,
     r.length > 3 ? h('div', { class: 'panel rest' }, h('h2', null, 'Classificação completa'), board(r)) : null,
