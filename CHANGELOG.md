@@ -11,6 +11,8 @@ Tipos de mudança: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Securi
 
 ### Added
 
+- **Tipo de jogo Alvo** (modo num celular só, ADR-0016): a cada rodada sorteia-se um número de 1 a 100; quem chegar mais perto dele vence a rodada e leva 1 ponto (empate: ninguém pontua). Escolhido na etapa 4, que passa a se chamar **Partida**; o jogo de sempre virou **Clássico**.
+- **Rodada de desempate** (os dois tipos): se a última rodada termina com empate no primeiro lugar, a revelação oferece desempate, quantas vezes quiserem.
 - **Etapas clicáveis** (Modo · Jogadores · Categoria · Rodadas): dá para pular para qualquer etapa já liberada.
 - **"Qual você quis dizer?"** (modo num celular só, ADR-0015): quando o chute não bate com certeza, o jogo oferece até 3 itens parecidos (busca por trigramas) e "Nenhum desses: enviar como escrevi". "villa nova de goias" passa a achar o Vila Nova (#29); nome ambíguo ("atletico") vira a lista de opções em vez de recusa. Aberta a pergunta, não dá para redigitar.
 - **Número de rodadas** (modo num celular só): nova etapa depois da categoria, com barra de 1 a 10 e campo para digitar (padrão 5). O jogo mostra "Rodada 3 de 10" e, na última, a revelação leva ao resultado final. Cravar 95+ continua podendo encerrar antes, e "Mais um round..." no fim abre rodadas extras.

@@ -2,7 +2,8 @@
  * offline (offline.js). Script classico: expoe window.Top100Reveal.
  *
  * Cada funcao recebe os resultados JA ORDENADOS do pior para o melhor (a ordem da animacao)
- * e um objeto `ui` com: h, avatarEl, animate, stepMs, meId (opcional).
+ * e um objeto `ui` com: h, avatarEl, animate, stepMs, meId (opcional) e target (opcional:
+ * alvo da rodada no modo Alvo do offline; marca a posicao e mostra a distancia).
  */
 (() => {
   'use strict';
@@ -13,7 +14,7 @@
   const scoreLabel = (r) => (r.status === 'hit' ? `#${r.pos}` : r.status === 'ambiguous' ? '?' : r.status === 'no_answer' ? '—' : 'fora');
 
   /** Regua horizontal 1 -> 100 (telas largas). */
-  function ruler(results, { h, avatarEl, animate, stepMs }) {
+  function ruler(results, { h, avatarEl, animate, stepMs, target }) {
     const rulerWidth = Math.min(1040, window.innerWidth) - 32 - 36 - 76;
     const minGap = Math.max(3, Math.ceil(46 / Math.max(rulerWidth / 99, 1)));
     const lanesEnd = []; // ultima posicao ocupada por faixa
@@ -52,6 +53,7 @@
         h('div', { class: 'ruler-out' }, 'fora'),
         h('div', { class: 'ruler-bar' }),
         h('div', { class: 'ruler-ticks' }, ticks),
+        target ? h('div', { class: 'target-mark', style: { left: pct(target) } }, h('span', null, `🎯 ${target}`)) : null,
         pins,
         bests,
       ),
@@ -59,7 +61,7 @@
   }
 
   /** Uma barra por jogador, entrando uma a uma (celular). */
-  function bars(results, { h, avatarEl, animate, stepMs, meId }) {
+  function bars(results, { h, avatarEl, animate, stepMs, meId, target }) {
     const topPts = Math.max(0, ...results.map((r) => r.points));
     return h('div', { class: 'panel bars', 'aria-label': 'Quão perto do 100 cada um chegou' },
       results.map((r, i) => {
@@ -74,7 +76,8 @@
             h('span', { class: 'bar-name' }, r.name, meId && r.playerId === meId ? ' (você)' : '',
               best ? h('span', { class: 'bar-best-label' }, ` · melhor #${best.pos}`) : null),
             h('span', { class: 'bar-track', 'aria-hidden': 'true' }, h('span', { class: 'bar-fill' }),
-              best ? h('span', { class: 'bar-best', style: { left: pct(best.pos) } }) : null),
+              best ? h('span', { class: 'bar-best', style: { left: pct(best.pos) } }) : null,
+              target ? h('span', { class: 'bar-target', style: { left: pct(target) } }) : null),
           ),
           h('span', { class: 'bar-pos' }, scoreLabel(r)),
         );
@@ -83,7 +86,7 @@
   }
 
   /** Ingressos com o resultado de cada jogador. */
-  function tickets(results, { h, avatarEl, animate, stepMs, meId }) {
+  function tickets(results, { h, avatarEl, animate, stepMs, meId, target }) {
     const topPts = Math.max(0, ...results.map((r) => r.points));
     return results.map((r, i) => {
       let pts = '+0';
@@ -110,6 +113,9 @@
           h('div', { class: 'who-line' }, r.name, meId && r.playerId === meId ? ' (você)' : ''),
           r.text ? h('div', { class: 'guess' }, `chutou “${r.text}”`) : null,
           detail,
+          target && r.distance != null
+            ? h('div', { class: 'distance' }, r.distance === 0 ? '🎯 Cravou o alvo!' : `A ${r.distance} do alvo (nº ${target})`)
+            : null,
         ),
         h('div', { class: 'score' }, h('div', { class: 'pos' }, scoreLabel(r)), h('div', { class: 'pts' }, pts)),
       );

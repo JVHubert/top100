@@ -9,7 +9,8 @@
 **Top 100** — jogo multiplayer em tempo real (estilo Gartic/Jackbox): dado um tema,
 cada jogador tenta adivinhar um item o mais perto possível da **posição 100** da lista.
 `pontos = posição` (rank 90 = 90, rank 20 = 20; ver `src/scoring.js` e ADR-0014). **Fora da lista = 0.**
-Rodadas até alguém cravar 95+ (aí oferece "concede").
+Rodadas combinadas antes (1 a 10); cravar 95+ pode encerrar antes. Tipo de jogo **Alvo**
+(modo num celular só): sorteia um número de 1 a 100 e o mais perto vence a rodada (1 ponto). Ver ADR-0016.
 
 ## Stack
 
