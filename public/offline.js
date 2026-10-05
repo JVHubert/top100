@@ -328,7 +328,7 @@ function renderIntro() {
         sample
           ? h('li', null, '🥶', h('span', null, h('b', null, sample.pt || sample.title), ` é o nº ${sample.pos} do ranking: vale só `, h('b', null, `${pointsFor(sample.pos)} ${pointsFor(sample.pos) === 1 ? 'ponto' : 'pontos'}`), '.'))
           : h('li', null, '🥶', h('span', null, 'O nº 1 da lista vale só ', h('b', null, '1 ponto'), '.')),
-        h('li', null, '📈', h('span', null, 'Os pontos disparam no fim: o nº 50 vale 25, o nº 90 vale 81.')),
+        h('li', null, '📈', h('span', null, 'Cada item vale a sua posição: o nº 50 vale 50, o nº 90 vale 90.')),
         h('li', null, '🔥', h('span', null, 'Um palpite lá perto do nº 100 vale quase ', h('b', null, '100 pontos'), '.')),
         h('li', null, '🚫', h('span', null, 'Fora do top 100 vale zero. O que já saiu não vale de novo.')),
         h('li', null, '🤫', h('span', null, 'Cada um digita na sua vez, sem os outros verem.')),

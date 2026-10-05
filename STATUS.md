@@ -3,7 +3,7 @@
 > **Briefing rápido.** Quem chega (humano ou IA) lê isto primeiro.
 > Atualize ao fim de cada sessão. Mantenha curto.
 
-**Atualizado em:** 2026-10-04
+**Atualizado em:** 2026-10-05
 **Versão:** 0.1.0 (fundação + MVP jogável)
 **Repositório:** <https://github.com/JVHubert/top100> (público desde 04/10/2026; histórico anterior em `top100-historico`, privado; negócio em `top100-negocio`, privado)
 **Jogar:** <https://jvhubert.github.io/top100/> (instalável como app; publicado a cada merge na `main`)
@@ -18,7 +18,7 @@
 - [x] Backend real-time (Express + Socket.IO) com salas por código
 - [x] Lobby: criar sala, entrar por código, escolher nome + avatar, host inicia
 - [x] Rodada com timer, respostas ocultas até todos responderem
-- [x] Revelação com posição real e pontos (`pontos = rank`, fora = 0)
+- [x] Revelação com posição real e pontos (`pontos = posição`, fora = 0; ADR-0014)
 - [x] Placar acumulado entre rodadas
 - [x] Tela de resultado final (ranking)
 - [x] Categoria "Top 100 filmes segundo o IMDb" (snapshot) populada

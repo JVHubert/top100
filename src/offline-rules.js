@@ -118,7 +118,7 @@ export function submitAnswer(room, category, playerId, text) {
     detail: hit ? item.detail ?? null : null,
     matched: hit ? item.pt || item.title : null,
     rank: hit ? item.pos : null,
-    points: hit ? pointsFor(item.pos) : 0, // quadratico (scoring.js); fora da lista = 0
+    points: hit ? pointsFor(item.pos) : 0, // = posicao (scoring.js); fora da lista = 0
   };
   room.round.answers[playerId] = entry;
   room.round.order.push(playerId);
@@ -163,7 +163,7 @@ export function revealRound(room) {
   }
   room.used.sort((a, b) => a.pos - b.pos);
 
-  // melhor POSICAO da rodada (os pontos sao quadraticos; o aviso de 95+ olha a posicao)
+  // melhor POSICAO da rodada (o aviso de 95+ olha a posicao)
   const best = results.reduce((m, r) => (r.status === 'hit' ? Math.max(m, r.pos) : m), 0);
   room.concedeOffered = best >= CONCEDE_THRESHOLD;
   const top = results.filter((r) => r.status === 'hit').sort((a, b) => b.pos - a.pos)[0];
