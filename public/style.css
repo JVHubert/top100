@@ -167,6 +167,9 @@ button, input { font: inherit; color: inherit; }
    ============================================================ */
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
 .brand { font-family: var(--display); font-size: 1.4rem; color: var(--pipoca); letter-spacing: .02em; }
+button.brand { background: none; border: 0; padding: 4px 0; cursor: pointer; text-align: left; }
+button.brand:hover { opacity: .85; }
+button.brand:focus-visible { outline: 2px solid var(--pipoca); outline-offset: 4px; border-radius: 6px; }
 .brand small { font-family: var(--ui); font-size: .85rem; font-weight: 600; color: rgba(255,255,255,.7); margin-left: 8px; letter-spacing: 0; }
 .code-chip {
   display: inline-flex; align-items: center; gap: 10px;
@@ -440,6 +443,7 @@ button, input { font: inherit; color: inherit; }
 .pass-name { font-family: var(--display); font-size: clamp(1.8rem, 9vw, 2.6rem); line-height: 1.05; color: var(--pipoca); overflow-wrap: anywhere; }
 .intro { display: grid; justify-items: center; }
 .intro-card { max-width: 560px; display: grid; gap: 18px; }
+.intro-back { display: grid; gap: 10px; }
 .intro-card h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 7vw, 2.2rem); color: var(--pipoca); text-align: center; }
 .intro-lead { margin: 0; font-size: 1.15rem; text-align: center; text-wrap: balance; }
 .intro-scale { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; font-family: var(--display); }

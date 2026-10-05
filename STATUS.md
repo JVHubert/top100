@@ -35,6 +35,8 @@
 - [x] Feedback do teste com a família: teclado/campo visível e barras no celular (#16),
       ambíguo pede para especificar e "fora" mais claro (#17).
 - [x] Várias categorias (ADR-0010): filmes, nomes do Brasil, países, cidades do Brasil.
+- [x] Navegação no modo num celular só: título leva ao início; voltar para categoria ou jogadores
+      a partir da explicação da regra.
 - [ ] Conferir no site do IBGE a ordem dos nomes (veio da CNN; ver `snapshot.note`) e o
       snapshot do IMDb contra o site.
 - [ ] Levar a explicação da regra (#9) para o online; decidir o pôster (#10, direito de uso);

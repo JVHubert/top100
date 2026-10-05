@@ -108,17 +108,23 @@ function render() {
   $app.replaceChildren(...[SETUP_SCREENS.has(screen) ? null : topbar(), view()].filter(Boolean));
 }
 
+/** Sai da partida para uma tela de preparo. Só pede confirmação se há pontos a perder. */
+function leaveMatch(next) {
+  const inProgress = room && room.roundNumber > 0 && room.phase !== 'ended';
+  if (inProgress && !confirm('Sair da partida? A pontuação desta partida será perdida.')) return;
+  room = null;
+  suddenDeath = null;
+  lastIntroCategory = null; // ao voltar, a explicação aparece de novo
+  go(next);
+}
+
 function topbar() {
-  const quit = () => {
-    if (!confirm('Sair da partida? A pontuação desta partida será perdida.')) return;
-    room = null;
-    go('category');
-  };
   return h('header', { class: 'topbar' },
-    h('div', { class: 'brand' }, 'TOP 100', h('small', null, categoryTitle(category.name))),
+    h('button', { class: 'brand', type: 'button', 'aria-label': 'Voltar ao início', onclick: () => leaveMatch('home') },
+      'TOP 100', h('small', null, categoryTitle(category.name))),
     h('div', { class: 'code-chip' },
       h('span', null, h('b', null, 'OFFLINE')),
-      h('button', { class: 'btn btn--ghost btn--small', style: { color: 'var(--tinta)' }, onclick: quit }, 'Sair'),
+      h('button', { class: 'btn btn--ghost btn--small', style: { color: 'var(--tinta)' }, onclick: () => leaveMatch('category') }, 'Sair'),
     ),
   );
 }
@@ -342,6 +348,10 @@ function renderIntro() {
           )
         : null,
       h('button', { class: 'btn btn--block', onclick: newRound }, 'Entendi, vamos jogar'),
+      h('div', { class: 'intro-back' },
+        h('button', { class: 'btn btn--ghost btn--block', onclick: () => leaveMatch('category') }, 'Escolher outra categoria'),
+        h('button', { class: 'btn btn--ghost btn--block', onclick: () => leaveMatch('players') }, 'Escolher outros jogadores'),
+      ),
     ),
   );
 }
