@@ -11,6 +11,7 @@ Tipos de mudança: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Securi
 
 ### Added
 
+- **"Qual você quis dizer?"** (modo num celular só, ADR-0015): quando o chute não bate com certeza, o jogo oferece até 3 itens parecidos (busca por trigramas) e "Nenhum desses: enviar como escrevi". "villa nova de goias" passa a achar o Vila Nova (#29); nome ambíguo ("atletico") vira a lista de opções em vez de recusa. Aberta a pergunta, não dá para redigitar.
 - **Número de rodadas** (modo num celular só): nova etapa depois da categoria, com barra de 1 a 10 e campo para digitar (padrão 5). O jogo mostra "Rodada 3 de 10" e, na última, a revelação leva ao resultado final. Cravar 95+ continua podendo encerrar antes, e "Mais um round..." no fim abre rodadas extras.
 - **Voltar sem sair do jogo** (modo num celular só): o título **TOP 100** no topo leva ao início, e a tela "Atenção ao truque" ganhou **Escolher outra categoria** e **Escolher outros jogadores**. Só pede confirmação se a partida já tem rodada jogada.
 - **Selo TOP 100** (mini da arte do topo) no lugar do "Top 100" repetido nos nomes das categorias (cartões, explicação, topo, fim de partida).

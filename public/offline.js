@@ -457,6 +457,11 @@ function renderAnswer() {
   input.addEventListener('input', () => { error.textContent = ''; });
   input.addEventListener('focus', () => input.scrollIntoView({ block: 'start', behavior: 'smooth' }));
 
+  const done = () => {
+    turn += 1;
+    if (turn < room.players.length) go('pass');
+    else { revealRound(room); go('reveal'); }
+  };
   const form = h('form', {
     class: 'guess-form',
     onsubmit: (e) => {
@@ -465,16 +470,19 @@ function renderAnswer() {
       if (!text) return fail(ui.empty);
       const res = submitAnswer(room, category, p.id, text);
       if (!res.ok) {
+        if (res.reason === 'choose') return render(); // abre "Qual você quis dizer?"
         if (res.reason === 'burned') return fail(fillText(ui.burned, { item: res.item.pt || res.item.title }));
         if (res.reason === 'ambiguous') return fail(ui.ambiguous);
         return fail('Não deu para registrar. Tente de novo.');
       }
-      turn += 1;
-      if (turn < room.players.length) go('pass');
-      else { revealRound(room); go('reveal'); }
+      done();
     },
   }, input, h('button', { class: 'btn', type: 'submit' }, 'Enviar chute'));
-  setTimeout(() => input.focus(), 0);
+
+  // Pergunta aberta: sem campo de texto. Só escolher uma opção ou enviar como escreveu (ADR-0015).
+  const pending = room.round.pending[p.id];
+  const choice = pending ? choicePanel(pending, (opts) => { if (submitAnswer(room, category, p.id, null, opts).ok) done(); }) : null;
+  if (!pending) setTimeout(() => input.focus(), 0);
 
   return h('section', { class: 'round' },
     h('div', { class: 'panel round-main answer-main' },
@@ -482,12 +490,32 @@ function renderAnswer() {
       suddenDeath
         ? h('p', { class: 'sudden-banner', role: 'status' }, `⚡ Morte súbita: só vale superar o #${suddenDeath.pos} (${suddenDeath.pt}) de ${suddenDeath.name}.`)
         : null,
-      form,
-      error,
-      h('p', { class: 'prompt' }, ui.prompt),
+      choice || form,
+      choice ? null : error,
+      choice ? null : h('p', { class: 'prompt' }, ui.prompt),
       h('p', { class: 'hint' }, 'Quanto mais perto do nº 100, mais pontos.'),
     ),
     sidePanel(),
+  );
+}
+
+/** "Qual você quis dizer?": as opções parecidas com o chute + enviar como foi escrito. */
+function choicePanel(pending, send) {
+  const options = pending.options.map((pos) => category.items.find((it) => it.pos === pos));
+  return h('div', { class: 'choice', role: 'group', 'aria-labelledby': 'choice-title' },
+    h('h2', { id: 'choice-title' }, 'Qual você quis dizer?'),
+    h('p', { class: 'hint' }, 'Você escreveu ', h('b', null, `“${pending.text}”`), '. Escolha uma opção; não dá para voltar e digitar de novo.'),
+    h('div', { class: 'choice-options' },
+      options.map((it) => {
+        const name = it.pt || it.title;
+        // título original e ano ajudam a separar filmes; nada que entregue a posição
+        const extra = [it.pt && it.title !== it.pt ? it.title : null, it.year].filter(Boolean).join(', ');
+        return h('button', { class: 'btn choice-option', type: 'button', onclick: () => send({ pick: it.pos }) },
+          name, extra ? h('small', null, extra) : null);
+      }),
+    ),
+    h('button', { class: 'btn btn--ghost btn--block', type: 'button', onclick: () => send({ asTyped: true }) },
+      `Nenhum desses: enviar “${pending.text}”`),
   );
 }
 

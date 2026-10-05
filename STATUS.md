@@ -38,6 +38,7 @@
 - [x] Navegação no modo num celular só: título leva ao início; voltar para categoria ou jogadores
       a partir da explicação da regra.
 - [x] Número de rodadas escolhido antes da partida (1 a 10), só no modo num celular só.
+- [x] "Qual você quis dizer?" no envio do chute (ADR-0015), só no modo num celular só.
 - [ ] Conferir no site do IBGE a ordem dos nomes (veio da CNN; ver `snapshot.note`) e o
       snapshot do IMDb contra o site.
 - [ ] Levar a explicação da regra (#9) para o online; decidir o pôster (#10, direito de uso);
