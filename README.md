@@ -5,7 +5,7 @@ Jogo multiplayer em tempo real no estilo *Gartic / Jackbox / Kahoot*.
 **A regra é simples:** sorteia-se um tema (ex.: *"Top 100 filmes segundo o IMDb"*). Cada
 jogador tenta adivinhar um item que esteja o mais **perto possível da POSIÇÃO 100** da
 lista — não da posição 1. Quanto mais fundo na lista, mais pontos
-(`pontos = posição² ÷ 100`, arredondado para cima: o 95º vale 91, o 20º vale 4; um item **fora da lista vale 0**). Jogamos em rodadas até
+(`pontos = posição`: o 95º vale 95, o 20º vale 20; um item **fora da lista vale 0**). Jogamos em rodadas até
 alguém cravar algo muito alto (95+), quando a partida pode ser encerrada ("concede").
 
 > Projeto **real**, não protótipo: backend de tempo real de verdade (Socket.IO), sem

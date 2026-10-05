@@ -87,7 +87,7 @@ test('3 jogadores jogam uma partida inteira em tempo real', async () => {
     const final = nextState(caio, (s) => s.phase === 'final');
     await call(ana, 'game:end');
     const f = await final;
-    assert.deepEqual(f.ranking.map((r) => [r.name, r.score]), [['Caio', 144], ['Ana', 102], ['Beto', 0]]); // quadrático: 61+83 e 99+3
+    assert.deepEqual(f.ranking.map((r) => [r.name, r.score]), [['Caio', 169], ['Ana', 115], ['Beto', 0]]); // 78+91 e 99+16
   } finally {
     ana.close(); beto.close(); caio.close(); beto2?.close();
     io.close();

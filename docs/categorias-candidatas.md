@@ -7,8 +7,8 @@
 
 ## Regra de ouro: a lista precisa ser **ordenada**
 
-Neste jogo os pontos saem da **posição** (`ceil(posição²/100)`: o 100º vale 100, o 90º
-vale 81, o 20º vale 4; ver ADR-0011). Logo a fonte precisa entregar um **ranking 1→100
+Neste jogo os pontos saem da **posição** (`pontos = posição`: o 100º vale 100, o 90º
+vale 90, o 20º vale 20; ver ADR-0014). Logo a fonte precisa entregar um **ranking 1→100
 com ordem defensável** — não basta "ter 100 itens".
 
 Consequência prática: listas sem ordem (ou com ordem arbitrária) **não servem**,
@@ -27,8 +27,8 @@ Para cada ideia, checamos:
 
 1. **Faz sentido?** — critério claro, fonte crível e itens que um grupo consegue chutar.
 2. **Tem 100?** — a fonte tem pelo menos 100 itens **ou** é um "Top 100" fechado.
-3. **Dá para chutar perto do fim?** (acrescentado na revisão) — com a pontuação
-   quadrática, a graça está nos itens entre ~#70 e #100. Se ninguém do grupo consegue
+3. **Dá para chutar perto do fim?** (acrescentado na revisão) — como o fundo da
+   lista vale mais, a graça está nos itens entre ~#70 e #100. Se ninguém do grupo consegue
    nomear itens nessa faixa (ex.: montanhas mais altas, estrelas mais brilhantes), a
    categoria vira sorteio. Se só o topo é conhecido e o fundo é obscuro, também não serve.
 4. **Dá para reconhecer o que as pessoas digitam?** — nomes com muitas grafias (pessoas,

@@ -39,7 +39,7 @@ test('fluxo completo: lobby -> rodada -> revelação -> final', () => {
   room.submitAnswer(b.id, 'A Caça');
   room.submitAnswer(a.id, 'Coringa');
   assert.equal(room.players.get(b.id).score, 99);
-  assert.equal(room.players.get(a.id).score, 183); // 100 (#100) + 83 (#91, quadrático)
+  assert.equal(room.players.get(a.id).score, 191); // 100 (#100) + 91 (#91)
 
   room.endMatch(a.id);
   assert.equal(room.phase, 'final');

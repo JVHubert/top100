@@ -1,6 +1,6 @@
 # 0011 — Pontuação quadrática
 
-- **Status:** accepted
+- **Status:** superseded by [ADR-0014](./0014-pontuacao-linear.md)
 - **Data:** 2026-10-04
 - **Decisores:** Hubert
 

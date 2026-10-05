@@ -89,6 +89,7 @@ Tipos de mudança: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Securi
 
 ### Changed
 
+- **Pontuação linear** (ADR-0014, substitui o ADR-0011): cada item vale a sua posição (#1 vale 1, #100 vale 100). A quadrática confundia: a revelação mostrava "#37" e "+14" lado a lado (#4).
 - A tela de explicação anuncia a categoria em destaque ("🎲 Categoria sorteada" quando veio do sorteio), com "Atenção ao truque" logo abaixo.
 - Cravar 95+ **encerra a partida** (antes era só um aviso amarelo); a revelação oferece "Ver resultado final".
 - **Fluxo em 3 etapas**: início (num celular só / online "em breve") → jogadores → categoria. No fim da partida: jogar de novo, trocar categoria ou trocar jogadores. `/` abre esse fluxo; o online foi para `/online` (convites `/?sala=` redirecionam).

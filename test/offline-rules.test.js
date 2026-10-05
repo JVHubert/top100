@@ -34,13 +34,13 @@ test('findItem: fora da lista retorna null', () => {
   assert.equal(findItem(category, 'Avatar 3'), null);
 });
 
-test('pontuacao: pontos = posicao² / 100, arredondado para cima', () => {
+test('pontuacao: pontos = posicao', () => {
   const room = makeRoom({ code: 'TEST', hostId: 'p1', categoryId: category.id });
   addPlayer(room, { id: 'p1', name: 'Ana', avatar: '🦊' });
   startRound(room);
   const res = submitAnswer(room, category, 'p1', 'The Matrix');
   assert.equal(res.ok, true);
-  assert.equal(res.entry.points, 3); // #16 -> ceil(2,56)
+  assert.equal(res.entry.points, 16); // #16 -> 16
 });
 
 test('pontuacao: item fora da lista vale zero', () => {
@@ -67,15 +67,15 @@ test('reveal: acumula pontos e monta o placar', () => {
   addPlayer(room, { id: 'p1', name: 'Ana', avatar: '🦊' });
   addPlayer(room, { id: 'p2', name: 'Bia', avatar: '🐼' });
   startRound(room);
-  submitAnswer(room, category, 'p1', 'The Matrix'); // #16 -> 3 pts
-  submitAnswer(room, category, 'p2', 'Requiem for a Dream'); // #96 -> 93 pts
+  submitAnswer(room, category, 'p1', 'The Matrix'); // #16 -> 16 pts
+  submitAnswer(room, category, 'p2', 'Requiem for a Dream'); // #96 -> 96 pts
   revealRound(room);
 
   assert.equal(room.phase, 'reveal');
   const board = ranking(room);
   assert.equal(board[0].name, 'Bia');
-  assert.equal(board[0].score, 93);
-  assert.equal(board[1].score, 3);
+  assert.equal(board[0].score, 96);
+  assert.equal(board[1].score, 16);
 });
 
 test('concede e oferecido quando alguem faz 95+', () => {
@@ -113,7 +113,7 @@ test('endGame: encerra e devolve o ranking final', () => {
   const final = endGame(room);
   assert.equal(room.phase, 'ended');
   assert.equal(final[0].position, 1);
-  assert.equal(final[0].score, 3);
+  assert.equal(final[0].score, 16);
 });
 
 test('filme ja revelado fica queimado na partida', () => {
@@ -161,11 +161,8 @@ test('revelacao marca fora e o jackpot de 95+', () => {
 
 import { pointsFor } from '../src/scoring.js';
 
-test('pontuacao quadratica: valores de referencia', () => {
-  const table = { 1: 1, 10: 1, 20: 4, 50: 25, 80: 64, 90: 81, 95: 91, 99: 99, 100: 100 };
-  for (const [pos, pts] of Object.entries(table)) assert.equal(pointsFor(Number(pos)), pts, `#${pos}`);
-  // quem arrisca: um #99 vale mais que cinco #20
-  assert.ok(pointsFor(99) > 5 * pointsFor(20));
+test('pontuacao linear: cada posicao vale o proprio numero (ADR-0014)', () => {
+  for (const pos of [1, 10, 20, 37, 50, 90, 95, 99, 100]) assert.equal(pointsFor(pos), pos, `#${pos}`);
 });
 
 test('mais um round: reabre a partida encerrada mantendo placar e queimados', () => {
